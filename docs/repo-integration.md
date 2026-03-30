@@ -5,11 +5,11 @@
 This repository is the platform shell. The business applications stay in their own repositories:
 
 - Truck Master Data
-  `/Users/ferdiansyahzulkarnain/Documents/my Dev/truck_master_data`
+  Example local checkout: `../truck_master_data`
 - SPBU Master Data
-  `/Users/ferdiansyahzulkarnain/Documents/my Dev/SPBU_Network_Masterdata`
+  Example local checkout: `../SPBU_Network_Masterdata`
 - VRP Dispatch
-  `/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_planner`
+  Example local checkout: `../vrp_planner`
 
 This repo keeps placeholders so the platform layer can be developed before those apps are pulled into the same local workflow.
 
@@ -40,7 +40,7 @@ Example for the Truck frontend:
 ```yaml
 truck-frontend:
   build:
-    context: /Users/ferdiansyahzulkarnain/Documents/my Dev/truck_master_data
+    context: ../truck_master_data
     dockerfile: Dockerfile
   networks:
     - edge

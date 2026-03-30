@@ -15,6 +15,7 @@ db_password="$(openssl rand -hex 16)"
 sample_password="LocalDev123!"
 client_secret="$(openssl rand -hex 24)"
 cookie_secret="$(openssl rand -base64 32 | tr -d '\n')"
+database_url="postgresql+psycopg2://ferdeh:${db_password}@host.docker.internal:5432/ferdeh_lab"
 
 while IFS= read -r line; do
   case "${line}" in
@@ -23,6 +24,12 @@ while IFS= read -r line; do
       ;;
     KEYCLOAK_DB_PASSWORD=*)
       printf 'KEYCLOAK_DB_PASSWORD=%s\n' "${db_password}"
+      ;;
+    DATABASE_URL=*)
+      printf 'DATABASE_URL=%s\n' "${database_url}"
+      ;;
+    POSTGRES_PASSWORD=*)
+      printf 'POSTGRES_PASSWORD=%s\n' "${db_password}"
       ;;
     KEYCLOAK_SAMPLE_PASSWORD=*)
       printf 'KEYCLOAK_SAMPLE_PASSWORD=%s\n' "${sample_password}"

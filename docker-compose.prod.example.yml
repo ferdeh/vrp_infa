@@ -14,8 +14,10 @@ services:
       - ./infra/traefik/dynamic:/etc/traefik/dynamic:ro
       - traefik_letsencrypt:/letsencrypt
     networks:
-      - edge
-      - private
+      edge:
+        aliases:
+          - ${KEYCLOAK_HOST}
+      private: {}
     restart: unless-stopped
 
   keycloak-db:
@@ -31,12 +33,14 @@ services:
     restart: unless-stopped
 
   keycloak:
+    platform: ${KEYCLOAK_PLATFORM:-linux/amd64}
     image: quay.io/keycloak/keycloak:26.1
     command:
       - start
     environment:
       KC_DB: postgres
-      KC_DB_URL_HOST: keycloak-db
+      KC_DB_URL_HOST: ${KEYCLOAK_DB_HOST}
+      KC_DB_URL_PORT: ${KEYCLOAK_DB_PORT}
       KC_DB_URL_DATABASE: ${KEYCLOAK_DB_NAME}
       KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
@@ -46,11 +50,11 @@ services:
       KC_HOSTNAME_STRICT: "true"
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    extra_hosts:
+      - host.docker.internal:host-gateway
     networks:
-      edge:
-        aliases:
-          - ${KEYCLOAK_HOST}
-      private:
+      - edge
+      - private
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
@@ -62,6 +66,7 @@ services:
     restart: unless-stopped
 
   keycloak-bootstrap:
+    platform: ${KEYCLOAK_PLATFORM:-linux/amd64}
     image: quay.io/keycloak/keycloak:26.1
     env_file:
       - .env
@@ -102,19 +107,21 @@ services:
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
-      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_UPSTREAMS: http://portal:80
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
     networks:
       - edge
+      - private
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.portal-oauth.rule=Host(`${PORTAL_HOST}`) && PathPrefix(`/oauth2/`)
-      - traefik.http.routers.portal-oauth.entrypoints=websecure
-      - traefik.http.routers.portal-oauth.tls=true
-      - traefik.http.routers.portal-oauth.tls.certresolver=letsencrypt
+      - traefik.http.routers.portal.rule=Host(`${PORTAL_HOST}`)
+      - traefik.http.routers.portal.entrypoints=websecure
+      - traefik.http.routers.portal.tls=true
+      - traefik.http.routers.portal.tls.certresolver=letsencrypt
+      - traefik.http.routers.portal.middlewares=platform-security@file
       - traefik.http.services.oauth2-proxy-portal.loadbalancer.server.port=4180
     restart: unless-stopped
 
@@ -142,19 +149,21 @@ services:
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
-      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_UPSTREAMS: http://truck-frontend:80
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
     networks:
       - edge
+      - private
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.truck-oauth.rule=Host(`${TRUCK_HOST}`) && PathPrefix(`/oauth2/`)
-      - traefik.http.routers.truck-oauth.entrypoints=websecure
-      - traefik.http.routers.truck-oauth.tls=true
-      - traefik.http.routers.truck-oauth.tls.certresolver=letsencrypt
+      - traefik.http.routers.truck.rule=Host(`${TRUCK_HOST}`)
+      - traefik.http.routers.truck.entrypoints=websecure
+      - traefik.http.routers.truck.tls=true
+      - traefik.http.routers.truck.tls.certresolver=letsencrypt
+      - traefik.http.routers.truck.middlewares=platform-security@file
       - traefik.http.services.oauth2-proxy-truck.loadbalancer.server.port=4180
     restart: unless-stopped
 
@@ -182,19 +191,21 @@ services:
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
-      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_UPSTREAMS: http://spbu-frontend:80
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
     networks:
       - edge
+      - private
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.spbu-oauth.rule=Host(`${SPBU_HOST}`) && PathPrefix(`/oauth2/`)
-      - traefik.http.routers.spbu-oauth.entrypoints=websecure
-      - traefik.http.routers.spbu-oauth.tls=true
-      - traefik.http.routers.spbu-oauth.tls.certresolver=letsencrypt
+      - traefik.http.routers.spbu.rule=Host(`${SPBU_HOST}`)
+      - traefik.http.routers.spbu.entrypoints=websecure
+      - traefik.http.routers.spbu.tls=true
+      - traefik.http.routers.spbu.tls.certresolver=letsencrypt
+      - traefik.http.routers.spbu.middlewares=platform-security@file
       - traefik.http.services.oauth2-proxy-spbu.loadbalancer.server.port=4180
     restart: unless-stopped
 
@@ -222,83 +233,13 @@ services:
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
-      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_UPSTREAMS: http://dispatch-frontend:80
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
     networks:
       - edge
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.dispatch-oauth.rule=Host(`${DISPATCH_HOST}`) && PathPrefix(`/oauth2/`)
-      - traefik.http.routers.dispatch-oauth.entrypoints=websecure
-      - traefik.http.routers.dispatch-oauth.tls=true
-      - traefik.http.routers.dispatch-oauth.tls.certresolver=letsencrypt
-      - traefik.http.services.oauth2-proxy-dispatch.loadbalancer.server.port=4180
-    restart: unless-stopped
-
-  portal:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./infra/placeholders/portal:/usr/share/nginx/html:ro
-      - ./infra/placeholders/shared/style.css:/usr/share/nginx/html/style.css:ro
-    networks:
-      - edge
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.portal.rule=Host(`${PORTAL_HOST}`)
-      - traefik.http.routers.portal.entrypoints=websecure
-      - traefik.http.routers.portal.tls=true
-      - traefik.http.routers.portal.tls.certresolver=letsencrypt
-      - traefik.http.routers.portal.middlewares=platform-security@file,oauth-portal@file
-      - traefik.http.services.portal.loadbalancer.server.port=80
-    restart: unless-stopped
-
-  truck-frontend:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./infra/placeholders/truck-frontend:/usr/share/nginx/html:ro
-      - ./infra/placeholders/shared/style.css:/usr/share/nginx/html/style.css:ro
-    networks:
-      - edge
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.truck.rule=Host(`${TRUCK_HOST}`)
-      - traefik.http.routers.truck.entrypoints=websecure
-      - traefik.http.routers.truck.tls=true
-      - traefik.http.routers.truck.tls.certresolver=letsencrypt
-      - traefik.http.routers.truck.middlewares=platform-security@file,oauth-truck@file
-      - traefik.http.services.truck-frontend.loadbalancer.server.port=80
-    restart: unless-stopped
-
-  spbu-frontend:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./infra/placeholders/spbu-frontend:/usr/share/nginx/html:ro
-      - ./infra/placeholders/shared/style.css:/usr/share/nginx/html/style.css:ro
-    networks:
-      - edge
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.spbu.rule=Host(`${SPBU_HOST}`)
-      - traefik.http.routers.spbu.entrypoints=websecure
-      - traefik.http.routers.spbu.tls=true
-      - traefik.http.routers.spbu.tls.certresolver=letsencrypt
-      - traefik.http.routers.spbu.middlewares=platform-security@file,oauth-spbu@file
-      - traefik.http.services.spbu-frontend.loadbalancer.server.port=80
-    restart: unless-stopped
-
-  dispatch-frontend:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./infra/placeholders/dispatch-frontend:/usr/share/nginx/html:ro
-      - ./infra/placeholders/shared/style.css:/usr/share/nginx/html/style.css:ro
-    networks:
-      - edge
+      - private
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
@@ -306,8 +247,40 @@ services:
       - traefik.http.routers.dispatch.entrypoints=websecure
       - traefik.http.routers.dispatch.tls=true
       - traefik.http.routers.dispatch.tls.certresolver=letsencrypt
-      - traefik.http.routers.dispatch.middlewares=platform-security@file,oauth-dispatch@file
-      - traefik.http.services.dispatch-frontend.loadbalancer.server.port=80
+      - traefik.http.routers.dispatch.middlewares=platform-security@file
+      - traefik.http.services.oauth2-proxy-dispatch.loadbalancer.server.port=4180
+    restart: unless-stopped
+
+  portal:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/placeholders/portal:/usr/share/nginx/html:ro
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-frontend:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/placeholders/truck-frontend:/usr/share/nginx/html:ro
+    networks:
+      - private
+    restart: unless-stopped
+
+  spbu-frontend:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/placeholders/spbu-frontend:/usr/share/nginx/html:ro
+    networks:
+      - private
+    restart: unless-stopped
+
+  dispatch-frontend:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/placeholders/dispatch-frontend:/usr/share/nginx/html:ro
+    networks:
+      - private
     restart: unless-stopped
 
 networks:
