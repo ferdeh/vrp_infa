@@ -82,12 +82,22 @@ This is intentionally local-first and HTTP-only. The production path is document
 
 3. Open the routed endpoints.
 
+   These are the default browser URLs when `TRAEFIK_HTTP_PORT=80` and `PLATFORM_PUBLIC_PORT_SUFFIX=`:
+
    - `http://portal.localhost`
    - `http://auth.localhost`
    - `http://truck.localhost`
    - `http://spbu.localhost`
    - `http://dispatch.localhost`
    - `http://localhost:8081/dashboard/` for the Traefik dashboard by default
+
+   If your local `.env` uses another port, for example `TRAEFIK_HTTP_PORT=8088` and `PLATFORM_PUBLIC_PORT_SUFFIX=:8088`, open the same hostnames with that port attached:
+
+   - `http://portal.localhost:8088`
+   - `http://auth.localhost:8088`
+   - `http://truck.localhost:8088`
+   - `http://spbu.localhost:8088`
+   - `http://dispatch.localhost:8088`
 
 4. Log in with a sample Keycloak user after bootstrap completes.
 
@@ -121,6 +131,11 @@ Alternate mode uses a hosts file and a custom local domain:
 - `dispatch.vrp.local`
 
 Switch modes by editing `.env`. See [docs/local-setup.md](docs/local-setup.md).
+
+The hostnames above describe the routing names. Your actual browser URL also depends on `TRAEFIK_HTTP_PORT`:
+
+- with `TRAEFIK_HTTP_PORT=80`, use `http://portal.localhost`
+- with `TRAEFIK_HTTP_PORT=8088`, use `http://portal.localhost:8088`
 
 If you change `TRAEFIK_HTTP_PORT` away from `80`, also set `PLATFORM_PUBLIC_PORT_SUFFIX`, for example `:8088`, so Keycloak and OAuth2 Proxy generate correct callback URLs.
 

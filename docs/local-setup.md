@@ -21,6 +21,8 @@ Configured defaults:
 - `spbu.localhost`
 - `dispatch.localhost`
 
+These are the default hostnames. When `TRAEFIK_HTTP_PORT=80`, open them without a port. If you override the port, for example `TRAEFIK_HTTP_PORT=8088`, open the same hostnames with `:8088` appended.
+
 Keep these values in `.env`:
 
 ```dotenv
@@ -111,6 +113,7 @@ The local compose stack starts:
 ### Keycloak
 
 - Open `http://auth.localhost` or the alternate host you configured
+- If `.env` sets `TRAEFIK_HTTP_PORT` to a non-default value such as `8088`, include that port in the browser URL, for example `http://auth.localhost:8088`
 - Sign in to the admin console with `KEYCLOAK_ADMIN` and `KEYCLOAK_ADMIN_PASSWORD`
 - Confirm the realm `vrp-platform` exists
 - Confirm the realm roles were created
@@ -118,6 +121,7 @@ The local compose stack starts:
 ### OAuth2 Proxy
 
 - Open `http://portal.localhost`
+- If `.env` sets `TRAEFIK_HTTP_PORT` to a non-default value such as `8088`, include that port in the browser URL, for example `http://portal.localhost:8088`
 - You should be redirected to Keycloak if you do not have a session
 - Log in with one of the sample users created by the bootstrap job
 - After login, you should land on the protected placeholder page
@@ -127,6 +131,8 @@ The local compose stack starts:
 - `http://truck.localhost`
 - `http://spbu.localhost`
 - `http://dispatch.localhost`
+
+If `.env` uses another Traefik port, open the same hostnames with that port attached, for example `http://truck.localhost:8088`.
 
 Each frontend placeholder page confirms:
 
