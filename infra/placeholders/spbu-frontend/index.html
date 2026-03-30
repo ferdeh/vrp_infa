@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SPBU Master Data</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="hero-top">
+          <span class="eyebrow">Protected App</span>
+          <h1>SPBU Master Data Placeholder</h1>
+          <p>
+            This routed host is reserved for the SPBU application frontend and
+            currently proves host-based routing plus phase-1 SSO.
+          </p>
+        </div>
+        <div class="hero-bottom">
+          <div class="grid">
+            <article class="card">
+              <h2>Frontend Service</h2>
+              <p><code>spbu-frontend</code></p>
+            </article>
+            <article class="card">
+              <h2>Backend Target</h2>
+              <p><code>spbu-backend</code> remains private by default.</p>
+            </article>
+            <article class="card">
+              <h2>Auth Pattern</h2>
+              <p>Per-host OAuth2 Proxy keeps local cookie handling predictable.</p>
+            </article>
+          </div>
+          <div class="meta">
+            <div>
+              <strong>Current Host</strong>
+              <code id="current-host"></code>
+            </div>
+            <div>
+              <strong>Portal Host</strong>
+              <code id="portal-host"></code>
+            </div>
+            <div>
+              <strong>Auth Host</strong>
+              <code id="auth-host"></code>
+            </div>
+          </div>
+          <div class="links">
+            <a class="button primary" id="portal-link" href="/">Portal</a>
+            <a class="button" id="auth-link" href="/">Keycloak</a>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const host = window.location.hostname;
+      const suffix = host.startsWith("spbu.") ? host.slice("spbu.".length) : host;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      const portalHost = `portal.${suffix}`;
+      const authHost = `auth.${suffix}`;
+
+      document.getElementById("current-host").textContent = host;
+      document.getElementById("portal-host").textContent = portalHost;
+      document.getElementById("auth-host").textContent = authHost;
+      document.getElementById("portal-link").href = `http://${portalHost}${port}`;
+      document.getElementById("auth-link").href = `http://${authHost}${port}`;
+    </script>
+  </body>
+</html>

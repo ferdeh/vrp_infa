@@ -1,0 +1,191 @@
+# Local Setup
+
+## Prerequisites
+
+- Docker Desktop or Docker Engine with Compose v2
+- A free local HTTP port, default `80`
+- A free local Traefik dashboard port, default `8081`
+- A shell with `make` and `openssl`
+
+## Local Routing Modes
+
+### Mode 1: `*.localhost`
+
+This is the default and requires no hosts file edits.
+
+Configured defaults:
+
+- `portal.localhost`
+- `auth.localhost`
+- `truck.localhost`
+- `spbu.localhost`
+- `dispatch.localhost`
+
+Keep these values in `.env`:
+
+```dotenv
+PLATFORM_USE_HOSTS_FILE=false
+PLATFORM_LOCAL_DOMAIN=localhost
+PLATFORM_BASE_DOMAIN=localhost
+PLATFORM_PUBLIC_SCHEME=http
+PLATFORM_PUBLIC_PORT_SUFFIX=
+PORTAL_HOST=portal.localhost
+KEYCLOAK_HOST=auth.localhost
+TRUCK_HOST=truck.localhost
+SPBU_HOST=spbu.localhost
+DISPATCH_HOST=dispatch.localhost
+```
+
+### Mode 2: hosts file with `*.vrp.local`
+
+Use this if you want a more production-like local domain or if your browser behaves poorly with local subdomain cookies.
+
+Set `.env` like this:
+
+```dotenv
+PLATFORM_USE_HOSTS_FILE=true
+PLATFORM_LOCAL_DOMAIN=vrp.local
+PLATFORM_BASE_DOMAIN=vrp.local
+PLATFORM_PUBLIC_SCHEME=http
+PLATFORM_PUBLIC_PORT_SUFFIX=
+PORTAL_HOST=portal.vrp.local
+KEYCLOAK_HOST=auth.vrp.local
+TRUCK_HOST=truck.vrp.local
+SPBU_HOST=spbu.vrp.local
+DISPATCH_HOST=dispatch.vrp.local
+```
+
+Add these entries to `/etc/hosts`:
+
+```text
+127.0.0.1 portal.vrp.local
+127.0.0.1 auth.vrp.local
+127.0.0.1 truck.vrp.local
+127.0.0.1 spbu.vrp.local
+127.0.0.1 dispatch.vrp.local
+```
+
+## Initial Setup
+
+1. Generate a working `.env`.
+
+   ```bash
+   make init-env
+   ```
+
+2. Review the generated `.env` and update hostnames or ports if needed.
+
+3. Start the stack.
+
+   ```bash
+   make up
+   ```
+
+4. Watch logs if the first bootstrap takes time.
+
+   ```bash
+   make logs
+   ```
+
+## What Starts
+
+The local compose stack starts:
+
+- Traefik
+- PostgreSQL for Keycloak
+- Keycloak
+- Keycloak bootstrap job
+- 4 OAuth2 Proxy instances
+- 4 routed frontend placeholders
+- 3 backend placeholders on the private network
+
+## Local Test Checklist
+
+### Traefik
+
+- Open `http://localhost:8081/dashboard/`
+- Confirm routers for `portal`, `truck`, `spbu`, `dispatch`, and `keycloak` exist
+
+### Keycloak
+
+- Open `http://auth.localhost` or the alternate host you configured
+- Sign in to the admin console with `KEYCLOAK_ADMIN` and `KEYCLOAK_ADMIN_PASSWORD`
+- Confirm the realm `vrp-platform` exists
+- Confirm the realm roles were created
+
+### OAuth2 Proxy
+
+- Open `http://portal.localhost`
+- You should be redirected to Keycloak if you do not have a session
+- Log in with one of the sample users created by the bootstrap job
+- After login, you should land on the protected placeholder page
+
+### Placeholder services
+
+- `http://truck.localhost`
+- `http://spbu.localhost`
+- `http://dispatch.localhost`
+
+Each frontend placeholder page confirms:
+
+- the routed hostname
+- the local auth pattern
+- the intended backend service name that will be swapped later
+
+## Useful Commands
+
+```bash
+make up
+make down
+make restart
+make logs
+make ps
+make urls
+make reset
+```
+
+## Troubleshooting
+
+### Port 80 is already in use
+
+Change `TRAEFIK_HTTP_PORT` in `.env`, for example:
+
+```dotenv
+TRAEFIK_HTTP_PORT=8088
+PLATFORM_PUBLIC_PORT_SUFFIX=:8088
+```
+
+Then open the URLs with the port attached, for example `http://portal.localhost:8088`.
+
+### Keycloak bootstrap did not finish
+
+Inspect the bootstrap container:
+
+```bash
+docker compose --env-file .env -f docker-compose.local.yml logs keycloak-bootstrap
+```
+
+Rerun it if needed:
+
+```bash
+make bootstrap-keycloak
+```
+
+### OAuth2 Proxy login loops
+
+Check:
+
+- that `KEYCLOAK_HOST` matches the routed auth hostname
+- that the client secret in `.env` is unchanged after the clients were already created
+- that your chosen hostname mode matches your browser URL
+
+If you changed auth secrets after the first run, run:
+
+```bash
+make reset
+make up
+```
+
+### `*.localhost` cookies behave unexpectedly
+
+Switch to hosts-file mode with `*.vrp.local`. That is the intended fallback for local environments that are stricter about cookie handling.

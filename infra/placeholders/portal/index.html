@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VRP Platform Portal</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="hero-top">
+          <span class="eyebrow">VRP Platform</span>
+          <h1>Portal Placeholder</h1>
+          <p>
+            This page proves the platform shell is routing through Traefik and
+            protecting the host with OAuth2 Proxy backed by Keycloak.
+          </p>
+        </div>
+        <div class="hero-bottom">
+          <div class="links" id="app-links"></div>
+          <div class="meta">
+            <div>
+              <strong>Current Host</strong>
+              <code id="current-host"></code>
+            </div>
+            <div>
+              <strong>Auth Host</strong>
+              <code id="auth-host"></code>
+            </div>
+            <div>
+              <strong>Mode</strong>
+              <span>Placeholder frontend served by nginx</span>
+            </div>
+          </div>
+          <div class="callout">
+            Replace this service later with the real portal image or build,
+            while keeping the service name <code>portal</code>.
+          </div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const host = window.location.hostname;
+      const suffix = host.startsWith("portal.") ? host.slice("portal.".length) : host;
+      const authHost = `auth.${suffix}`;
+      const links = [
+        { label: "Truck Master Data", href: `http://truck.${suffix}${window.location.port ? `:${window.location.port}` : ""}` },
+        { label: "SPBU Master Data", href: `http://spbu.${suffix}${window.location.port ? `:${window.location.port}` : ""}` },
+        { label: "VRP Dispatch", href: `http://dispatch.${suffix}${window.location.port ? `:${window.location.port}` : ""}` },
+        { label: "Keycloak", href: `http://${authHost}${window.location.port ? `:${window.location.port}` : ""}` }
+      ];
+
+      document.getElementById("current-host").textContent = host;
+      document.getElementById("auth-host").textContent = authHost;
+      document.getElementById("app-links").innerHTML = links
+        .map((link, index) => {
+          const className = index === 0 ? "button primary" : "button";
+          return `<a class="${className}" href="${link.href}">${link.label}</a>`;
+        })
+        .join("");
+    </script>
+  </body>
+</html>

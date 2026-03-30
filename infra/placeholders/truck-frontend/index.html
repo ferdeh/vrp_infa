@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Truck Master Data</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="hero-top">
+          <span class="eyebrow">Protected App</span>
+          <h1>Truck Master Data Placeholder</h1>
+          <p>
+            This host is protected by Traefik plus a dedicated OAuth2 Proxy
+            instance. It represents the future truck frontend integration point.
+          </p>
+        </div>
+        <div class="hero-bottom">
+          <div class="grid">
+            <article class="card">
+              <h2>Frontend Service</h2>
+              <p><code>truck-frontend</code></p>
+            </article>
+            <article class="card">
+              <h2>Backend Target</h2>
+              <p><code>truck-backend</code> on the private Docker network</p>
+            </article>
+            <article class="card">
+              <h2>Identity Flow</h2>
+              <p>OAuth2 Proxy delegates login to Keycloak realm <code>vrp-platform</code>.</p>
+            </article>
+          </div>
+          <div class="meta">
+            <div>
+              <strong>Current Host</strong>
+              <code id="current-host"></code>
+            </div>
+            <div>
+              <strong>Portal Host</strong>
+              <code id="portal-host"></code>
+            </div>
+            <div>
+              <strong>Auth Host</strong>
+              <code id="auth-host"></code>
+            </div>
+          </div>
+          <div class="links">
+            <a class="button primary" id="portal-link" href="/">Portal</a>
+            <a class="button" id="auth-link" href="/">Keycloak</a>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const host = window.location.hostname;
+      const suffix = host.startsWith("truck.") ? host.slice("truck.".length) : host;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      const portalHost = `portal.${suffix}`;
+      const authHost = `auth.${suffix}`;
+
+      document.getElementById("current-host").textContent = host;
+      document.getElementById("portal-host").textContent = portalHost;
+      document.getElementById("auth-host").textContent = authHost;
+      document.getElementById("portal-link").href = `http://${portalHost}${port}`;
+      document.getElementById("auth-link").href = `http://${authHost}${port}`;
+    </script>
+  </body>
+</html>
