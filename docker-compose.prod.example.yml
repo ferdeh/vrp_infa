@@ -50,8 +50,6 @@ services:
       KC_HOSTNAME_STRICT: "true"
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-    extra_hosts:
-      - host.docker.internal:host-gateway
     networks:
       - edge
       - private

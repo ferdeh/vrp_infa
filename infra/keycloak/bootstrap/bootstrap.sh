@@ -39,8 +39,20 @@ user_exists() {
 }
 
 client_id_exists() {
+  [ -n "$(get_client_internal_id "$1")" ]
+}
+
+get_client_internal_id() {
   local client_id="$1"
-  /opt/keycloak/bin/kcadm.sh get clients -r "${KEYCLOAK_REALM}" -q "clientId=${client_id}" | grep -Eq "\"clientId\"[[:space:]]*:[[:space:]]*\"${client_id}\""
+
+  /opt/keycloak/bin/kcadm.sh get clients \
+    -r "${KEYCLOAK_REALM}" \
+    -q "clientId=${client_id}" \
+    --fields id,clientId \
+    | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' \
+    | head -n 1 \
+    | sed -E 's/"id"[[:space:]]*:[[:space:]]*"([^"]+)"/\1/' \
+    || true
 }
 
 wait_for_keycloak() {
@@ -161,16 +173,14 @@ create_client() {
   local redirect_url="$2"
   local root_url="$3"
   local client_file
+  local existing_id
 
   client_file="$(mktemp)"
   write_client_file "${client_id}" "${redirect_url}" "${root_url}" "${client_file}"
 
-  if client_id_exists "${client_id}"; then
-    local existing_id
-    existing_id="$(
-      /opt/keycloak/bin/kcadm.sh get clients -r "${KEYCLOAK_REALM}" -q "clientId=${client_id}" \
-      | tr -d '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
-    )"
+  existing_id="$(get_client_internal_id "${client_id}")"
+
+  if [ -n "${existing_id}" ]; then
     log "updating client ${client_id}"
     /opt/keycloak/bin/kcadm.sh update "clients/${existing_id}" -r "${KEYCLOAK_REALM}" -f "${client_file}"
   else
@@ -179,6 +189,13 @@ create_client() {
   fi
 
   rm -f "${client_file}"
+
+  if ! client_id_exists "${client_id}"; then
+    log "client ${client_id} was not found after bootstrap"
+    exit 1
+  fi
+
+  log "client ${client_id} is ready"
 }
 
 main() {

@@ -15,7 +15,7 @@ db_password="$(openssl rand -hex 16)"
 sample_password="LocalDev123!"
 client_secret="$(openssl rand -hex 24)"
 cookie_secret="$(openssl rand -base64 32 | tr -d '\n')"
-database_url="postgresql+psycopg2://ferdeh:${db_password}@host.docker.internal:5432/ferdeh_lab"
+database_url="postgresql+psycopg2://keycloak:${db_password}@keycloak-db:5432/keycloak"
 
 while IFS= read -r line; do
   case "${line}" in

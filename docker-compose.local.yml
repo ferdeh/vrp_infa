@@ -60,8 +60,6 @@ services:
     depends_on:
       keycloak-db:
         condition: service_healthy
-    extra_hosts:
-      - host.docker.internal:host-gateway
     networks:
       - edge
       - private
