@@ -43,7 +43,7 @@ On a VPS:
 - set `OAUTH2_PROXY_COOKIE_SECURE=true`
 - change redirect URLs from `http://...` to `https://...`
 
-The repository includes [docker-compose.prod.example.yml](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/docker-compose.prod.example.yml) and [infra/traefik/traefik.prod.example.yml](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/infra/traefik/traefik.prod.example.yml) as the starting point.
+The repository includes [docker-compose.prod.example.yml](../docker-compose.prod.example.yml) and [infra/traefik/traefik.prod.example.yml](../infra/traefik/traefik.prod.example.yml) as the starting point.
 
 ### DNS
 

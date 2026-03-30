@@ -120,7 +120,7 @@ Alternate mode uses a hosts file and a custom local domain:
 - `spbu.vrp.local`
 - `dispatch.vrp.local`
 
-Switch modes by editing `.env`. See [docs/local-setup.md](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/docs/local-setup.md).
+Switch modes by editing `.env`. See [docs/local-setup.md](docs/local-setup.md).
 
 If you change `TRAEFIK_HTTP_PORT` away from `80`, also set `PLATFORM_PUBLIC_PORT_SUFFIX`, for example `:8088`, so Keycloak and OAuth2 Proxy generate correct callback URLs.
 
@@ -141,14 +141,14 @@ You can swap them later in two supported ways:
 - Replace a placeholder service with `build:` or `image:` from a real app repo
 - Keep the real app running outside this stack and point Traefik or a bridge service at the existing local port
 
-See [docs/repo-integration.md](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/docs/repo-integration.md).
+See [docs/repo-integration.md](docs/repo-integration.md).
 
 ## Documentation
 
-- [Local architecture](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/docs/architecture-local.md)
-- [Local setup](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/docs/local-setup.md)
-- [Repository integration](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/docs/repo-integration.md)
-- [VPS migration](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/docs/vps-migration.md)
+- [Local architecture](docs/architecture-local.md)
+- [Local setup](docs/local-setup.md)
+- [Repository integration](docs/repo-integration.md)
+- [VPS migration](docs/vps-migration.md)
 
 ## Known Limitations
 

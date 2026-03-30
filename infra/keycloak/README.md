@@ -13,4 +13,4 @@ The bootstrap is environment-driven and avoids hardcoding client secrets into tr
 
 Main file:
 
-- [bootstrap.sh](/Users/ferdiansyahzulkarnain/Documents/my Dev/vrp_infa/infra/keycloak/bootstrap/bootstrap.sh)
+- [bootstrap.sh](bootstrap/bootstrap.sh)
