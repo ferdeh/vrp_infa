@@ -31,6 +31,7 @@ PLATFORM_PUBLIC_SCHEME=http
 PLATFORM_PUBLIC_PORT_SUFFIX=
 PORTAL_HOST=portal.localhost
 KEYCLOAK_HOST=auth.localhost
+KEYCLOAK_INTERNAL_URL=http://auth.localhost
 TRUCK_HOST=truck.localhost
 SPBU_HOST=spbu.localhost
 DISPATCH_HOST=dispatch.localhost
@@ -50,6 +51,7 @@ PLATFORM_PUBLIC_SCHEME=http
 PLATFORM_PUBLIC_PORT_SUFFIX=
 PORTAL_HOST=portal.vrp.local
 KEYCLOAK_HOST=auth.vrp.local
+KEYCLOAK_INTERNAL_URL=http://auth.vrp.local
 TRUCK_HOST=truck.vrp.local
 SPBU_HOST=spbu.vrp.local
 DISPATCH_HOST=dispatch.vrp.local
@@ -153,9 +155,12 @@ Change `TRAEFIK_HTTP_PORT` in `.env`, for example:
 ```dotenv
 TRAEFIK_HTTP_PORT=8088
 PLATFORM_PUBLIC_PORT_SUFFIX=:8088
+KEYCLOAK_INTERNAL_URL=http://auth.localhost
 ```
 
 Then open the URLs with the port attached, for example `http://portal.localhost:8088`.
+
+Keep `KEYCLOAK_INTERNAL_URL` on the internal Docker hostname without `:8088`. The host port suffix is for browsers and redirect URLs, not for container-to-container OIDC discovery.
 
 ### Keycloak bootstrap did not finish
 
@@ -176,6 +181,7 @@ make bootstrap-keycloak
 Check:
 
 - that `KEYCLOAK_HOST` matches the routed auth hostname
+- that `KEYCLOAK_INTERNAL_URL` points at the internal Docker hostname for Keycloak discovery
 - that the client secret in `.env` is unchanged after the clients were already created
 - that your chosen hostname mode matches your browser URL
 

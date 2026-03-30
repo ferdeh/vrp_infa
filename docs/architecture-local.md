@@ -56,11 +56,10 @@ flowchart LR
 ### Portal or app access
 
 1. A browser requests `http://portal.localhost` or another app host.
-2. Traefik matches the host rule and applies a per-app `forwardAuth` middleware.
-3. The matching OAuth2 Proxy instance checks for a valid session cookie.
+2. Traefik matches the host rule and routes the request to the matching OAuth2 Proxy instance.
+3. OAuth2 Proxy checks for a valid session cookie.
 4. If no session exists, OAuth2 Proxy redirects the user to Keycloak.
-5. After login, OAuth2 Proxy stores the authenticated session and returns the request to Traefik.
-6. Traefik sends the request to the protected frontend service.
+5. After login, OAuth2 Proxy stores the authenticated session and proxies the request to the protected frontend service.
 
 ### Keycloak access
 
@@ -82,6 +81,7 @@ Local mode also uses one OAuth2 Proxy instance per protected hostname. That is d
 - it avoids cookie-domain ambiguity across `*.localhost`
 - it keeps each auth flow easy to inspect
 - it makes role-based or path-based policy changes per app straightforward later
+- it lets container-to-container OIDC discovery stay on an internal URL while browser redirects keep using the public host and port
 
 ## Roles in the Realm
 

@@ -66,12 +66,15 @@ PLATFORM_PUBLIC_SCHEME=https
 PLATFORM_PUBLIC_PORT_SUFFIX=
 PORTAL_HOST=portal.example.com
 KEYCLOAK_HOST=auth.example.com
+KEYCLOAK_INTERNAL_URL=https://auth.example.com
 TRUCK_HOST=truck.example.com
 SPBU_HOST=spbu.example.com
 DISPATCH_HOST=dispatch.example.com
 DOMAIN=example.com
 ACME_EMAIL=ops@example.com
 ```
+
+In local mode, `KEYCLOAK_INTERNAL_URL` can stay on an internal Docker hostname such as `http://auth.localhost`. On a VPS, the internal and public Keycloak URL will usually be the same HTTPS hostname.
 
 Also rotate:
 

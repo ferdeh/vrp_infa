@@ -15,7 +15,7 @@ Phase 1 keeps local development simple:
 
 - `Traefik` receives all browser traffic on local hostnames such as `portal.localhost` and `auth.localhost`.
 - `Keycloak` owns users, roles, realm configuration, and OAuth clients.
-- `OAuth2 Proxy` is deployed once per routed web app host. Each instance protects one app hostname and delegates login to Keycloak.
+- `OAuth2 Proxy` is deployed once per routed web app host. Each instance fronts one app hostname, delegates login to Keycloak, and proxies the authenticated request to the matching frontend.
 - `portal`, `truck-frontend`, `spbu-frontend`, and `dispatch-frontend` are exposed through Traefik.
 - `truck-backend`, `spbu-backend`, and `dispatch-backend` stay on the private Docker network by default.
 
@@ -123,6 +123,8 @@ Alternate mode uses a hosts file and a custom local domain:
 Switch modes by editing `.env`. See [docs/local-setup.md](docs/local-setup.md).
 
 If you change `TRAEFIK_HTTP_PORT` away from `80`, also set `PLATFORM_PUBLIC_PORT_SUFFIX`, for example `:8088`, so Keycloak and OAuth2 Proxy generate correct callback URLs.
+
+Also keep `KEYCLOAK_INTERNAL_URL` on the internal Docker address, for example `http://auth.localhost`. Containers should use the internal Traefik port `80` even when the host publishes Traefik on another port such as `8088`.
 
 ## Replacing Placeholders Later
 
