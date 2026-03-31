@@ -158,7 +158,7 @@ services:
       OAUTH2_PROXY_COOKIE_SECURE: "false"
       OAUTH2_PROXY_COOKIE_SAMESITE: lax
       OAUTH2_PROXY_COOKIE_DOMAINS: ${TRUCK_HOST}
-      OAUTH2_PROXY_WHITELIST_DOMAINS: .${TRUCK_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${TRUCK_HOST},${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
       OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_EMAIL_DOMAINS: '*'
@@ -175,6 +175,8 @@ services:
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
+      truck-frontend:
+        condition: service_healthy
     networks:
       - edge
       - private
@@ -205,7 +207,7 @@ services:
       OAUTH2_PROXY_COOKIE_SECURE: "false"
       OAUTH2_PROXY_COOKIE_SAMESITE: lax
       OAUTH2_PROXY_COOKIE_DOMAINS: ${SPBU_HOST}
-      OAUTH2_PROXY_WHITELIST_DOMAINS: .${SPBU_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${SPBU_HOST},${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
       OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_EMAIL_DOMAINS: '*'
@@ -222,6 +224,8 @@ services:
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
+      spbu-frontend:
+        condition: service_healthy
     networks:
       - edge
       - private
@@ -310,37 +314,242 @@ services:
       - private
     restart: unless-stopped
 
-  truck-frontend:
-    image: nginx:1.27-alpine
+  truck-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${TRUCK_DB_NAME}
+      POSTGRES_USER: ${TRUCK_DB_USER}
+      POSTGRES_PASSWORD: ${TRUCK_DB_PASSWORD}
     volumes:
-      - ./infra/placeholders/truck-frontend:/usr/share/nginx/html:ro
+      - truck_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${TRUCK_DB_USER} -d ${TRUCK_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-redis:
+    image: redis:7-alpine
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-rabbitmq:
+    image: rabbitmq:3-management-alpine
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - private
     restart: unless-stopped
 
   truck-backend:
-    image: hashicorp/http-echo:1.0.0
-    command:
-      - -listen=:8080
-      - '-text={"service":"truck-backend","status":"ok","message":"Placeholder backend. Replace with the real truck backend later."}'
+    build:
+      context: ../truck_master_data/api
+      dockerfile: Dockerfile
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${TRUCK_DB_USER}:${TRUCK_DB_PASSWORD}@truck-db:${TRUCK_DB_PORT:-5432}/${TRUCK_DB_NAME}
+      CELERY_BROKER_URL: redis://truck-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://truck-redis:6379/1
+      REDIS_URL: redis://truck-redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@truck-rabbitmq:5672/%2F
+      IMPORT_STORAGE_DIR: /tmp/fleet-masterdata-imports
+      SPBU_MASTERDATA_URL: ${TRUCK_SPBU_MASTERDATA_URL:-http://spbu-backend:8000}
+      TRUCK_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      TRUCK_AUTH_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      TRUCK_OAUTH_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-truck
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      truck-db:
+        condition: service_healthy
+      truck-redis:
+        condition: service_healthy
+      truck-rabbitmq:
+        condition: service_healthy
+    expose:
+      - "8000"
+    volumes:
+      - truck_imports_data:/tmp/fleet-masterdata-imports
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-worker:
+    build:
+      context: ../truck_master_data/api
+      dockerfile: Dockerfile
+    command: celery -A app.worker.tasks worker --loglevel=INFO
+    environment:
+      DATABASE_URL: postgresql+psycopg://${TRUCK_DB_USER}:${TRUCK_DB_PASSWORD}@truck-db:${TRUCK_DB_PORT:-5432}/${TRUCK_DB_NAME}
+      CELERY_BROKER_URL: redis://truck-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://truck-redis:6379/1
+      REDIS_URL: redis://truck-redis:6379/0
+      IMPORT_STORAGE_DIR: /tmp/fleet-masterdata-imports
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      truck-db:
+        condition: service_healthy
+      truck-redis:
+        condition: service_healthy
+      truck-backend:
+        condition: service_healthy
+    volumes:
+      - truck_imports_data:/tmp/fleet-masterdata-imports
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-consumer:
+    build:
+      context: ../truck_master_data/api
+      dockerfile: Dockerfile
+    command: python -m app.consumer.runner
+    environment:
+      DATABASE_URL: postgresql+psycopg://${TRUCK_DB_USER}:${TRUCK_DB_PASSWORD}@truck-db:${TRUCK_DB_PORT:-5432}/${TRUCK_DB_NAME}
+      RABBITMQ_URL: amqp://guest:guest@truck-rabbitmq:5672/%2F
+      RABBITMQ_EXCHANGE: sim.events
+      RABBITMQ_QUEUE: fleet.availability.updates
+      RABBITMQ_BINDING_KEY: sim.availability.generated
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      truck-db:
+        condition: service_healthy
+      truck-rabbitmq:
+        condition: service_healthy
+      truck-backend:
+        condition: service_healthy
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-frontend:
+    build:
+      context: ../truck_master_data/web
+      dockerfile: Dockerfile
+    environment:
+      TRUCK_API_UPSTREAM: http://truck-backend:8000
+      PORTAL_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+    depends_on:
+      truck-backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - private
+    restart: unless-stopped
+
+  spbu-db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${SPBU_DB_NAME}
+      POSTGRES_USER: ${SPBU_DB_USER}
+      POSTGRES_PASSWORD: ${SPBU_DB_PASSWORD}
+    volumes:
+      - spbu_db_data:/var/lib/postgresql/data
+      - ../SPBU_Network_Masterdata/spbu-network-mvp/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${SPBU_DB_USER} -d ${SPBU_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - private
     restart: unless-stopped
 
   spbu-frontend:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./infra/placeholders/spbu-frontend:/usr/share/nginx/html:ro
+    build:
+      context: ../SPBU_Network_Masterdata/spbu-network-mvp/frontend
+      dockerfile: Dockerfile
+    environment:
+      SPBU_API_UPSTREAM: http://spbu-backend:8000
+      PORTAL_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+    depends_on:
+      spbu-backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - private
     restart: unless-stopped
 
   spbu-backend:
-    image: hashicorp/http-echo:1.0.0
-    command:
-      - -listen=:8080
-      - '-text={"service":"spbu-backend","status":"ok","message":"Placeholder backend. Replace with the real SPBU backend later."}'
+    build:
+      context: ../SPBU_Network_Masterdata/spbu-network-mvp/backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${SPBU_DB_USER}:${SPBU_DB_PASSWORD}@spbu-db:${SPBU_DB_PORT:-5432}/${SPBU_DB_NAME}
+      CORS_ORIGINS: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      SPBU_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      SPBU_AUTH_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      SPBU_OAUTH_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-spbu
+    depends_on:
+      spbu-db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
+      - edge
       - private
     restart: unless-stopped
 
@@ -370,3 +579,6 @@ networks:
 
 volumes:
   keycloak_db_data:
+  truck_db_data:
+  truck_imports_data:
+  spbu_db_data:
