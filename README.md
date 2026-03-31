@@ -115,6 +115,12 @@ This is intentionally local-first and HTTP-only. The production path is document
 
    The shared sample password is stored in `.env` as `KEYCLOAK_SAMPLE_PASSWORD`.
 
+5. Validate portal logout.
+
+   - Click `Logout` in the portal top bar.
+   - The browser should pass through `/logout`, clear the local OAuth2 Proxy session, and continue to Keycloak logout.
+   - Opening `http://portal.localhost:8088` again should redirect back to the login flow instead of returning directly to the dashboard.
+
 ## Local Routing Modes
 
 Default mode uses `*.localhost` and does not need `/etc/hosts` changes:

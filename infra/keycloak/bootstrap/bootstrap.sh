@@ -153,11 +153,14 @@ write_client_file() {
   "serviceAccountsEnabled": false,
   "frontchannelLogout": true,
   "attributes": {
-    "pkce.code.challenge.method": "S256"
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "+"
   },
   "secret": "${OAUTH2_PROXY_CLIENT_SECRET}",
   "redirectUris": [
-    "${redirect_url}"
+    "${redirect_url}",
+    "${root_url}/oauth2/sign_in*",
+    "${root_url}/oauth2/sign_out*"
   ],
   "webOrigins": [
     "${root_url}"
