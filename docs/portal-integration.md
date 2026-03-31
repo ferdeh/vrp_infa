@@ -79,6 +79,17 @@ docker compose --env-file .env -f docker-compose.local.yml up -d --build
    - a populated normalized user
    - forwarded header entries in the debug section
 
+## Logout Flow Validation
+
+1. While still signed in, click `Logout` in the portal top bar.
+2. Confirm the browser lands on `/logout` briefly before continuing to the Keycloak logout endpoint.
+3. Open `http://portal.localhost:8088` again after logout completes.
+4. Confirm you are redirected to Keycloak instead of going straight back to the dashboard.
+5. If logout still appears sticky, inspect `oauth2-proxy-portal` logs first. The usual causes are:
+   - the proxy session cookie was not cleared
+   - the Keycloak client is missing the allowed post-logout redirect URI
+   - the browser retried an old `/oauth2/callback` URL after an interrupted login attempt
+
 ## Expected Auth Headers at the Portal App
 
 Traefik forwards the browser request to `oauth2-proxy-portal`, and OAuth2 Proxy forwards the authenticated request to the `portal` container.
