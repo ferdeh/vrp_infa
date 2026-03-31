@@ -1,13 +1,13 @@
 # vrp-infra
 
-Local-first infrastructure repository for a multi-app VRP platform. This repository does not build the business applications yet. It provides the shared platform layer around them:
+Local-first infrastructure repository for a multi-app VRP platform. It provides the shared platform layer around the business applications, and the local compose stack now builds the real portal app from the sibling `vrp_portal` repository:
 
 - Traefik as the HTTP entrypoint and reverse proxy
 - Keycloak as the central identity provider
 - PostgreSQL for Keycloak state
 - OAuth2 Proxy as a pragmatic phase-1 SSO layer for web apps
 - Docker Compose for local orchestration
-- Replaceable placeholder services for the portal and 3 application domains
+- Local integration of the real portal app plus replaceable placeholder services for 3 application domains
 
 ## Architecture Summary
 
@@ -17,6 +17,7 @@ Phase 1 keeps local development simple:
 - `Keycloak` owns users, roles, realm configuration, and OAuth clients.
 - `OAuth2 Proxy` is deployed once per routed web app host. Each instance fronts one app hostname, delegates login to Keycloak, and proxies the authenticated request to the matching frontend.
 - `portal`, `truck-frontend`, `spbu-frontend`, and `dispatch-frontend` are exposed through Traefik.
+- `portal` is built from `../vrp_portal` and runs as a production Next.js container on the private Docker network.
 - `truck-backend`, `spbu-backend`, and `dispatch-backend` stay on the private Docker network by default.
 
 This is intentionally local-first and HTTP-only. The production path is documented, but the main implementation optimizes for fast local setup.
@@ -101,6 +102,8 @@ This is intentionally local-first and HTTP-only. The production path is document
 
 4. Log in with a sample Keycloak user after bootstrap completes.
 
+   For the local HTTP setup, use a regular browser window for Keycloak. Private or incognito mode can break the admin console because the browser may block the cookie and storage checks Keycloak performs during startup.
+
    Sample usernames are created automatically:
 
    - `alice.admin`
@@ -143,9 +146,8 @@ Also keep `KEYCLOAK_INTERNAL_URL` on the internal Docker address, for example `h
 
 ## Replacing Placeholders Later
 
-The placeholder services are intentionally named after the target platform services:
+The remaining placeholder services are intentionally named after the target platform services:
 
-- `portal`
 - `truck-frontend`
 - `truck-backend`
 - `spbu-frontend`
@@ -153,18 +155,20 @@ The placeholder services are intentionally named after the target platform servi
 - `dispatch-frontend`
 - `dispatch-backend`
 
-You can swap them later in two supported ways:
+The portal service is already wired to the real `vrp_portal` repo. The other placeholders can still be swapped later in two supported ways:
 
 - Replace a placeholder service with `build:` or `image:` from a real app repo
 - Keep the real app running outside this stack and point Traefik or a bridge service at the existing local port
 
 See [docs/repo-integration.md](docs/repo-integration.md).
+See [docs/portal-integration.md](docs/portal-integration.md) for the concrete portal wiring, rebuild flow, header expectations, and rollback steps.
 
 ## Documentation
 
 - [Local architecture](docs/architecture-local.md)
 - [Local setup](docs/local-setup.md)
 - [Repository integration](docs/repo-integration.md)
+- [Portal integration](docs/portal-integration.md)
 - [VPS migration](docs/vps-migration.md)
 
 ## Known Limitations

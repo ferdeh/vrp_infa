@@ -112,6 +112,7 @@ The local compose stack starts:
 
 ### Keycloak
 
+- Use a regular browser window for the admin console. Avoid private or incognito mode in the local HTTP setup because Keycloak's admin console depends on cookie and storage checks during startup.
 - Open `http://auth.localhost` or the alternate host you configured
 - If `.env` sets `TRAEFIK_HTTP_PORT` to a non-default value such as `8088`, include that port in the browser URL, for example `http://auth.localhost:8088`
 - Sign in to the admin console with `KEYCLOAK_ADMIN` and `KEYCLOAK_ADMIN_PASSWORD`
@@ -124,7 +125,8 @@ The local compose stack starts:
 - If `.env` sets `TRAEFIK_HTTP_PORT` to a non-default value such as `8088`, include that port in the browser URL, for example `http://portal.localhost:8088`
 - You should be redirected to Keycloak if you do not have a session
 - Log in with one of the sample users created by the bootstrap job
-- After login, you should land on the protected placeholder page
+- After login, you should land on the protected portal app
+- Open `http://portal.localhost:8088/profile` when you want to confirm the forwarded auth headers and normalized user context
 
 ### Placeholder services
 
@@ -167,6 +169,22 @@ KEYCLOAK_INTERNAL_URL=http://auth.localhost
 Then open the URLs with the port attached, for example `http://portal.localhost:8088`.
 
 Keep `KEYCLOAK_INTERNAL_URL` on the internal Docker hostname without `:8088`. The host port suffix is for browsers and redirect URLs, not for container-to-container OIDC discovery.
+
+### Keycloak admin console shows "Something went wrong"
+
+In the local HTTP setup, the Keycloak admin console can fail to initialize if the browser blocks cookies or site storage for `auth.localhost`.
+
+Try this in order:
+
+```text
+1. Use a normal browser window, not private/incognito mode.
+2. Clear site data for auth.localhost and portal.localhost.
+3. Allow cookies for auth.localhost:8088 if the browser is blocking them.
+4. Temporarily disable privacy or ad-blocking extensions for auth.localhost:8088.
+5. Reload http://auth.localhost:8088/admin/
+```
+
+If the admin console still fails, test in another browser profile before changing the stack configuration.
 
 ### Keycloak bootstrap did not finish
 

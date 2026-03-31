@@ -95,7 +95,12 @@ services:
     environment:
       OAUTH2_PROXY_PROVIDER: oidc
       OAUTH2_PROXY_OIDC_ISSUER_URL: ${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
       OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-portal
       OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
@@ -113,13 +118,16 @@ services:
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
-      OAUTH2_PROXY_UPSTREAMS: http://portal:80
+      OAUTH2_PROXY_UPSTREAMS: http://portal:3000
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
+      portal:
+        condition: service_healthy
     networks:
       - edge
       - private
@@ -137,7 +145,12 @@ services:
     environment:
       OAUTH2_PROXY_PROVIDER: oidc
       OAUTH2_PROXY_OIDC_ISSUER_URL: ${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
       OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-truck
       OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
@@ -179,7 +192,12 @@ services:
     environment:
       OAUTH2_PROXY_PROVIDER: oidc
       OAUTH2_PROXY_OIDC_ISSUER_URL: ${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
       OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-spbu
       OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
@@ -221,7 +239,12 @@ services:
     environment:
       OAUTH2_PROXY_PROVIDER: oidc
       OAUTH2_PROXY_OIDC_ISSUER_URL: ${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
       OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-dispatch
       OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
@@ -259,9 +282,30 @@ services:
     restart: unless-stopped
 
   portal:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./infra/placeholders/portal:/usr/share/nginx/html:ro
+    build:
+      context: ../vrp_portal
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NEXT_PUBLIC_APP_NAME: VRP Petrofin Portal
+      NEXT_PUBLIC_PORTAL_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_TRUCK_URL: ${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_SPBU_URL: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_DISPATCH_URL: ${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      PORTAL_AUTH_MODE: headers
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:3000/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - private
     restart: unless-stopped

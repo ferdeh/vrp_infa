@@ -11,13 +11,13 @@ This repository is the platform shell. The business applications stay in their o
 - VRP Dispatch
   Example local checkout: `../vrp_planner`
 
-This repo keeps placeholders so the platform layer can be developed before those apps are pulled into the same local workflow.
+This repo keeps placeholders so the platform layer can be developed before those apps are pulled into the same local workflow. The exception is the portal, which is now wired to the real `../vrp_portal` Next.js app in local compose.
 
 ## Current Placeholder Mapping
 
 | Final target | Current placeholder service | Exposure |
 | --- | --- | --- |
-| Portal | `portal` | Routed by Traefik |
+| Portal | `portal` | Routed by Traefik, backed by `../vrp_portal` in local compose |
 | Truck UI | `truck-frontend` | Routed by Traefik |
 | Truck API | `truck-backend` | Private only |
 | SPBU UI | `spbu-frontend` | Routed by Traefik |
@@ -35,21 +35,18 @@ Example strategy:
 2. Point `context:` at the actual repository path.
 3. Keep the same service name so the Traefik labels and network expectations stay stable.
 
-Example for the Truck frontend:
+Concrete example for the portal:
 
 ```yaml
-truck-frontend:
+portal:
   build:
-    context: ../truck_master_data
+    context: ../vrp_portal
     dockerfile: Dockerfile
+  environment:
+    PORT: "3000"
+    PORTAL_AUTH_MODE: headers
   networks:
-    - edge
-  labels:
-    - traefik.enable=true
-    - traefik.http.routers.truck.rule=Host(`${TRUCK_HOST}`)
-    - traefik.http.routers.truck.entrypoints=web
-    - traefik.http.routers.truck.middlewares=platform-security@file,oauth-truck@file
-    - traefik.http.services.truck-frontend.loadbalancer.server.port=3000
+    - private
 ```
 
 Benefits:
@@ -57,6 +54,7 @@ Benefits:
 - Traefik config does not need to change
 - OAuth2 Proxy routing does not need to change
 - The placeholder can be swapped with minimal blast radius
+- The service name `portal` stays stable for `oauth2-proxy-portal`
 
 ## Integration Mode B: Proxy to an Already Running Local App
 
