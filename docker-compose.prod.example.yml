@@ -50,6 +50,8 @@ services:
       KC_HOSTNAME_STRICT: "true"
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ./infra/keycloak/themes:/opt/keycloak/themes:ro
     networks:
       - edge
       - private
