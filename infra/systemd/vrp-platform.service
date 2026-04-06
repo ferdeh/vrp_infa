@@ -1,0 +1,17 @@
+[Unit]
+Description=VRP Platform Docker Compose Stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/ferdeh/vrp-workspace/vrp_infa
+Environment=COMPOSE_PROJECT_NAME=vrp-infra
+ExecStart=/usr/bin/docker compose --env-file /home/ferdeh/vrp-workspace/vrp_infa/.env.prod -f /home/ferdeh/vrp-workspace/vrp_infa/docker-compose.prod.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file /home/ferdeh/vrp-workspace/vrp_infa/.env.prod -f /home/ferdeh/vrp-workspace/vrp_infa/docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
