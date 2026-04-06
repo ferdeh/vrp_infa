@@ -35,7 +35,19 @@ role_exists() {
 
 user_exists() {
   local username="$1"
-  /opt/keycloak/bin/kcadm.sh get users -r "${KEYCLOAK_REALM}" -q "username=${username}" | grep -Eq "\"username\"[[:space:]]*:[[:space:]]*\"${username}\""
+  [ -n "$(get_user_internal_id "${username}")" ]
+}
+
+get_user_internal_id() {
+  local username="$1"
+
+  /opt/keycloak/bin/kcadm.sh get "users?exact=true&username=${username}&max=1" \
+    -r "${KEYCLOAK_REALM}" \
+    --fields id,username \
+    | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' \
+    | head -n 1 \
+    | sed -E 's/"id"[[:space:]]*:[[:space:]]*"([^"]+)"/\1/' \
+    || true
 }
 
 client_id_exists() {
@@ -45,9 +57,8 @@ client_id_exists() {
 get_client_internal_id() {
   local client_id="$1"
 
-  /opt/keycloak/bin/kcadm.sh get clients \
+  /opt/keycloak/bin/kcadm.sh get "clients?clientId=${client_id}&max=1" \
     -r "${KEYCLOAK_REALM}" \
-    -q "clientId=${client_id}" \
     --fields id,clientId \
     | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' \
     | head -n 1 \
@@ -77,6 +88,18 @@ create_realm() {
     -s realm="${KEYCLOAK_REALM}" \
     -s enabled=true \
     -s displayName="VRP Platform"
+}
+
+sync_realm_settings() {
+  local display_name="${KEYCLOAK_DISPLAY_NAME:-VRP Petrofin Platform}"
+  local display_name_html="${KEYCLOAK_DISPLAY_NAME_HTML:-VRP <span>Petrofin Platform</span>}"
+  local login_theme="${KEYCLOAK_LOGIN_THEME:-petrofin}"
+
+  log "syncing realm presentation settings"
+  /opt/keycloak/bin/kcadm.sh update "realms/${KEYCLOAK_REALM}" \
+    -s displayName="${display_name}" \
+    -s "displayNameHtml=${display_name_html}" \
+    -s loginTheme="${login_theme}"
 }
 
 create_roles() {
@@ -121,25 +144,32 @@ assign_roles() {
   local username="$1"
   shift
   local roles=("$@")
+  local user_id
 
   if [ "${#roles[@]}" -eq 0 ]; then
     return
   fi
 
-  log "assigning roles to ${username}: ${roles[*]}"
+  user_id="$(get_user_internal_id "${username}")"
+
+  if [ -z "${user_id}" ]; then
+    log "cannot assign roles to ${username}: user not found"
+    exit 1
+  fi
+
+  log "ensuring roles for ${username}: ${roles[*]}"
   for role_name in "${roles[@]}"; do
     /opt/keycloak/bin/kcadm.sh add-roles \
       -r "${KEYCLOAK_REALM}" \
-      --uusername "${username}" \
+      --uid "${user_id}" \
       --rolename "${role_name}" >/dev/null 2>&1 || true
   done
 }
 
 write_client_file() {
   local client_id="$1"
-  local redirect_url="$2"
-  local root_url="$3"
-  local output_file="$4"
+  local root_url="$2"
+  local output_file="$3"
 
   cat > "${output_file}" <<EOF
 {
@@ -153,11 +183,14 @@ write_client_file() {
   "serviceAccountsEnabled": false,
   "frontchannelLogout": true,
   "attributes": {
-    "pkce.code.challenge.method": "S256"
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "+"
   },
   "secret": "${OAUTH2_PROXY_CLIENT_SECRET}",
   "redirectUris": [
-    "${redirect_url}"
+    "${root_url}/oauth2/callback",
+    "${root_url}/oauth2/sign_in",
+    "${root_url}"
   ],
   "webOrigins": [
     "${root_url}"
@@ -170,13 +203,12 @@ EOF
 
 create_client() {
   local client_id="$1"
-  local redirect_url="$2"
-  local root_url="$3"
+  local root_url="$2"
   local client_file
   local existing_id
 
   client_file="$(mktemp)"
-  write_client_file "${client_id}" "${redirect_url}" "${root_url}" "${client_file}"
+  write_client_file "${client_id}" "${root_url}" "${client_file}"
 
   existing_id="$(get_client_internal_id "${client_id}")"
 
@@ -210,9 +242,11 @@ main() {
   require_env TRUCK_HOST
   require_env SPBU_HOST
   require_env DISPATCH_HOST
+  require_env PLANNER_HOST
 
   wait_for_keycloak
   create_realm
+  sync_realm_settings
   create_roles
 
   create_user "alice.admin" "alice.admin@local.vrp" "Alice" "Admin"
@@ -229,10 +263,11 @@ main() {
   assign_roles "david.dispatch" dispatcher vrp_user
   assign_roles "victor.viewer" viewer
 
-  create_client "${OAUTH2_PROXY_CLIENT_ID}-portal" "${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback" "${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
-  create_client "${OAUTH2_PROXY_CLIENT_ID}-truck" "${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback" "${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
-  create_client "${OAUTH2_PROXY_CLIENT_ID}-spbu" "${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback" "${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
-  create_client "${OAUTH2_PROXY_CLIENT_ID}-dispatch" "${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback" "${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
+  create_client "${OAUTH2_PROXY_CLIENT_ID}-portal" "${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
+  create_client "${OAUTH2_PROXY_CLIENT_ID}-truck" "${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
+  create_client "${OAUTH2_PROXY_CLIENT_ID}-spbu" "${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
+  create_client "${OAUTH2_PROXY_CLIENT_ID}-dispatch" "${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
+  create_client "${OAUTH2_PROXY_CLIENT_ID}-planner" "${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
 
   log "bootstrap complete"
 }

@@ -1,0 +1,757 @@
+name: ${COMPOSE_PROJECT_NAME:-vrp-infra}
+
+x-oauth2-proxy-common: &oauth2_proxy_common
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+  depends_on:
+    keycloak-bootstrap:
+      condition: service_completed_successfully
+  networks:
+    - edge
+    - private
+  restart: unless-stopped
+
+services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - --global.checknewversion=false
+      - --global.sendanonymoususage=false
+      - --api.dashboard=false
+      - --ping=true
+      - --log.level=INFO
+      - --accesslog=true
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./infra/traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./.runtime/traefik:/letsencrypt
+    healthcheck:
+      test:
+        - CMD
+        - traefik
+        - healthcheck
+        - --ping
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      edge:
+        aliases:
+          - ${KEYCLOAK_HOST}
+      private: {}
+    restart: unless-stopped
+
+  keycloak-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME}
+      POSTGRES_USER: ${KEYCLOAK_DB_USER}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${KEYCLOAK_DB_USER} -d ${KEYCLOAK_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  keycloak:
+    platform: ${KEYCLOAK_PLATFORM:-linux/amd64}
+    image: quay.io/keycloak/keycloak:26.1
+    command:
+      - start
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: ${KEYCLOAK_DB_HOST}
+      KC_DB_URL_PORT: ${KEYCLOAK_DB_PORT}
+      KC_DB_URL_DATABASE: ${KEYCLOAK_DB_NAME}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      KC_HOSTNAME_STRICT: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_SPI_THEME_STATIC_MAX_AGE: "-1"
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
+      KC_METRICS_ENABLED: "true"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ./infra/keycloak/themes:/opt/keycloak/themes:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - edge
+      - private
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
+      - traefik.http.routers.keycloak.rule=Host(`${KEYCLOAK_HOST}`)
+      - traefik.http.routers.keycloak.entrypoints=websecure
+      - traefik.http.routers.keycloak.tls=true
+      - traefik.http.routers.keycloak.tls.certresolver=letsencrypt
+      - traefik.http.routers.keycloak.middlewares=platform-security@file
+      - traefik.http.services.keycloak.loadbalancer.server.port=8080
+    healthcheck:
+      test:
+        - CMD
+        - /bin/bash
+        - -ec
+        - exec 3<>/dev/tcp/127.0.0.1/9000
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+  keycloak-bootstrap:
+    platform: ${KEYCLOAK_PLATFORM:-linux/amd64}
+    image: quay.io/keycloak/keycloak:26.1
+    env_file:
+      - .env.prod
+    volumes:
+      - ./infra/keycloak/bootstrap/bootstrap.sh:/opt/bootstrap/bootstrap.sh:ro
+    entrypoint:
+      - /bin/bash
+      - /opt/bootstrap/bootstrap.sh
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - edge
+      - private
+    restart: "no"
+
+  oauth2-proxy-portal:
+    <<: *oauth2_proxy_common
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "false"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-portal
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_portal
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_DOMAINS: ${PORTAL_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${PORTAL_HOST},${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_EMAIL_DOMAINS: '*'
+      OAUTH2_PROXY_SCOPE: openid profile email roles
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
+      OAUTH2_PROXY_UPSTREAMS: http://portal:3000
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      portal:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
+      - traefik.http.routers.portal.rule=Host(`${PORTAL_HOST}`)
+      - traefik.http.routers.portal.entrypoints=websecure
+      - traefik.http.routers.portal.tls=true
+      - traefik.http.routers.portal.tls.certresolver=letsencrypt
+      - traefik.http.routers.portal.middlewares=platform-security@file
+      - traefik.http.services.oauth2-proxy-portal.loadbalancer.server.port=4180
+
+  oauth2-proxy-truck:
+    <<: *oauth2_proxy_common
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "false"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-truck
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_truck
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_DOMAINS: ${TRUCK_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${TRUCK_HOST},${KEYCLOAK_HOST}
+      OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_EMAIL_DOMAINS: '*'
+      OAUTH2_PROXY_SCOPE: openid profile email roles
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
+      OAUTH2_PROXY_UPSTREAMS: http://truck-frontend:80
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      truck-frontend:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
+      - traefik.http.routers.truck.rule=Host(`${TRUCK_HOST}`)
+      - traefik.http.routers.truck.entrypoints=websecure
+      - traefik.http.routers.truck.tls=true
+      - traefik.http.routers.truck.tls.certresolver=letsencrypt
+      - traefik.http.routers.truck.middlewares=platform-security@file
+      - traefik.http.services.oauth2-proxy-truck.loadbalancer.server.port=4180
+
+  oauth2-proxy-spbu:
+    <<: *oauth2_proxy_common
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "false"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-spbu
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_spbu
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_DOMAINS: ${SPBU_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${SPBU_HOST},${KEYCLOAK_HOST}
+      OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_EMAIL_DOMAINS: '*'
+      OAUTH2_PROXY_SCOPE: openid profile email roles
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
+      OAUTH2_PROXY_UPSTREAMS: http://spbu-frontend:80
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      spbu-frontend:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
+      - traefik.http.routers.spbu.rule=Host(`${SPBU_HOST}`)
+      - traefik.http.routers.spbu.entrypoints=websecure
+      - traefik.http.routers.spbu.tls=true
+      - traefik.http.routers.spbu.tls.certresolver=letsencrypt
+      - traefik.http.routers.spbu.middlewares=platform-security@file
+      - traefik.http.services.oauth2-proxy-spbu.loadbalancer.server.port=4180
+
+  oauth2-proxy-dispatch:
+    <<: *oauth2_proxy_common
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "false"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-dispatch
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_dispatch
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_DOMAINS: ${DISPATCH_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${DISPATCH_HOST},${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_EMAIL_DOMAINS: '*'
+      OAUTH2_PROXY_SCOPE: openid profile email roles
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
+      OAUTH2_PROXY_UPSTREAMS: http://dispatch-frontend:80
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      dispatch-frontend:
+        condition: service_started
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
+      - traefik.http.routers.dispatch.rule=Host(`${DISPATCH_HOST}`)
+      - traefik.http.routers.dispatch.entrypoints=websecure
+      - traefik.http.routers.dispatch.tls=true
+      - traefik.http.routers.dispatch.tls.certresolver=letsencrypt
+      - traefik.http.routers.dispatch.middlewares=platform-security@file
+      - traefik.http.services.oauth2-proxy-dispatch.loadbalancer.server.port=4180
+
+  oauth2-proxy-planner:
+    <<: *oauth2_proxy_common
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "false"
+      OAUTH2_PROXY_LOGIN_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-planner
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_planner
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_DOMAINS: ${PLANNER_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${PLANNER_HOST},${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_EMAIL_DOMAINS: '*'
+      OAUTH2_PROXY_SCOPE: openid profile email roles
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
+      OAUTH2_PROXY_UPSTREAMS: http://planner-frontend:80
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      planner-frontend:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ../vrp_portal
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NEXT_PUBLIC_APP_NAME: VRP Petrofin Portal
+      NEXT_PUBLIC_PORTAL_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_TRUCK_URL: ${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_SPBU_URL: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_PLANNER_URL: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_DISPATCH_URL: ${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      PORTAL_AUTH_MODE: headers
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:3000/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${TRUCK_DB_NAME}
+      POSTGRES_USER: ${TRUCK_DB_USER}
+      POSTGRES_PASSWORD: ${TRUCK_DB_PASSWORD}
+    volumes:
+      - truck_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${TRUCK_DB_USER} -d ${TRUCK_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-redis:
+    image: redis:7-alpine
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-rabbitmq:
+    image: rabbitmq:3-management-alpine
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-backend:
+    build:
+      context: ../truck_master_data/api
+      dockerfile: Dockerfile
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${TRUCK_DB_USER}:${TRUCK_DB_PASSWORD}@truck-db:${TRUCK_DB_PORT:-5432}/${TRUCK_DB_NAME}
+      CELERY_BROKER_URL: redis://truck-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://truck-redis:6379/1
+      REDIS_URL: redis://truck-redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@truck-rabbitmq:5672/%2F
+      IMPORT_STORAGE_DIR: /tmp/fleet-masterdata-imports
+      SPBU_MASTERDATA_URL: ${TRUCK_SPBU_MASTERDATA_URL:-http://spbu-backend:8000}
+      TRUCK_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      TRUCK_AUTH_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      TRUCK_OAUTH_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-truck
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      truck-db:
+        condition: service_healthy
+      truck-redis:
+        condition: service_healthy
+      truck-rabbitmq:
+        condition: service_healthy
+    expose:
+      - "8000"
+    volumes:
+      - truck_imports_data:/tmp/fleet-masterdata-imports
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-worker:
+    build:
+      context: ../truck_master_data/api
+      dockerfile: Dockerfile
+    command: celery -A app.worker.tasks worker --loglevel=INFO
+    environment:
+      DATABASE_URL: postgresql+psycopg://${TRUCK_DB_USER}:${TRUCK_DB_PASSWORD}@truck-db:${TRUCK_DB_PORT:-5432}/${TRUCK_DB_NAME}
+      CELERY_BROKER_URL: redis://truck-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://truck-redis:6379/1
+      REDIS_URL: redis://truck-redis:6379/0
+      IMPORT_STORAGE_DIR: /tmp/fleet-masterdata-imports
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      truck-db:
+        condition: service_healthy
+      truck-redis:
+        condition: service_healthy
+      truck-backend:
+        condition: service_healthy
+    volumes:
+      - truck_imports_data:/tmp/fleet-masterdata-imports
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-consumer:
+    build:
+      context: ../truck_master_data/api
+      dockerfile: Dockerfile
+    command: python -m app.consumer.runner
+    environment:
+      DATABASE_URL: postgresql+psycopg://${TRUCK_DB_USER}:${TRUCK_DB_PASSWORD}@truck-db:${TRUCK_DB_PORT:-5432}/${TRUCK_DB_NAME}
+      RABBITMQ_URL: amqp://guest:guest@truck-rabbitmq:5672/%2F
+      RABBITMQ_EXCHANGE: sim.events
+      RABBITMQ_QUEUE: fleet.availability.updates
+      RABBITMQ_BINDING_KEY: sim.availability.generated
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      truck-db:
+        condition: service_healthy
+      truck-rabbitmq:
+        condition: service_healthy
+      truck-backend:
+        condition: service_healthy
+    networks:
+      - private
+    restart: unless-stopped
+
+  truck-frontend:
+    build:
+      context: ../truck_master_data/web
+      dockerfile: Dockerfile
+    environment:
+      TRUCK_API_UPSTREAM: http://truck-backend:8000
+      PORTAL_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+    depends_on:
+      truck-backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - private
+    restart: unless-stopped
+
+  spbu-db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${SPBU_DB_NAME}
+      POSTGRES_USER: ${SPBU_DB_USER}
+      POSTGRES_PASSWORD: ${SPBU_DB_PASSWORD}
+    volumes:
+      - spbu_db_data:/var/lib/postgresql/data
+      - ../SPBU_Network_Masterdata/spbu-network-mvp/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${SPBU_DB_USER} -d ${SPBU_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  spbu-backend:
+    build:
+      context: ../SPBU_Network_Masterdata/spbu-network-mvp/backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${SPBU_DB_USER}:${SPBU_DB_PASSWORD}@spbu-db:${SPBU_DB_PORT:-5432}/${SPBU_DB_NAME}
+      CORS_ORIGINS: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      SPBU_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      SPBU_AUTH_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      SPBU_OAUTH_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-spbu
+    depends_on:
+      spbu-db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - private
+    restart: unless-stopped
+
+  spbu-frontend:
+    build:
+      context: ../SPBU_Network_Masterdata/spbu-network-mvp/frontend
+      dockerfile: Dockerfile
+    environment:
+      SPBU_API_UPSTREAM: http://spbu-backend:8000
+      PORTAL_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+    depends_on:
+      spbu-backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - private
+    restart: unless-stopped
+
+  dispatch-frontend:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/placeholders/dispatch-frontend:/usr/share/nginx/html:ro
+    networks:
+      - private
+    restart: unless-stopped
+
+  dispatch-backend:
+    image: hashicorp/http-echo:1.0.0
+    command:
+      - -listen=:8080
+      - '-text={"service":"dispatch-backend","status":"ok","message":"Placeholder backend. Replace with the real dispatch backend later."}'
+    networks:
+      - private
+    restart: unless-stopped
+
+  planner-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PLANNER_DB_NAME}
+      POSTGRES_USER: ${PLANNER_DB_USER}
+      POSTGRES_PASSWORD: ${PLANNER_DB_PASSWORD}
+    volumes:
+      - planner_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${PLANNER_DB_USER} -d ${PLANNER_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+    restart: unless-stopped
+
+  planner-backend:
+    build:
+      context: ../vrp_planner/backend
+      dockerfile: Dockerfile
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"
+    environment:
+      APP_NAME: vrp_planner
+      APP_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      DATABASE_URL: postgresql+psycopg2://${PLANNER_DB_USER}:${PLANNER_DB_PASSWORD}@planner-db:${PLANNER_DB_PORT:-5432}/${PLANNER_DB_NAME}
+      MASTER_DATA_API_BASE_URL: http://spbu-backend:8000
+      TRUCK_MASTER_DATA_API_BASE_URL: http://truck-backend:8000
+      USE_MOCK_MASTER_DATA: "false"
+      SOLVER_MAX_SECONDS: 30
+      SOLVER_FIRST_STRATEGY: PATH_CHEAPEST_ARC
+      SOLVER_LOCAL_SEARCH: GUIDED_LOCAL_SEARCH
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      PLANNER_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      PLANNER_AUTH_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      PLANNER_OAUTH_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-planner
+    depends_on:
+      planner-db:
+        condition: service_healthy
+      truck-backend:
+        condition: service_healthy
+      spbu-backend:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - private
+    restart: unless-stopped
+
+  planner-frontend:
+    build:
+      context: ../vrp_planner/frontend
+      dockerfile: Dockerfile
+    environment:
+      PLANNER_API_UPSTREAM: http://planner-backend:8080
+      PORTAL_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+    depends_on:
+      planner-backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - private
+    restart: unless-stopped
+
+networks:
+  edge:
+    driver: bridge
+  private:
+    driver: bridge
+    internal: true
+
+volumes:
+  keycloak_db_data:
+  truck_db_data:
+  truck_imports_data:
+  spbu_db_data:
+  planner_db_data:

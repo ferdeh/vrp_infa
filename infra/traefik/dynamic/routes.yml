@@ -1,0 +1,92 @@
+http:
+  routers:
+    keycloak:
+      entryPoints:
+        - websecure
+      rule: Host(`auth.neuron-epn.com`)
+      service: keycloak
+      middlewares:
+        - platform-security
+      tls:
+        certResolver: letsencrypt
+
+    portal:
+      entryPoints:
+        - websecure
+      rule: Host(`portal.neuron-epn.com`)
+      service: oauth2-proxy-portal
+      middlewares:
+        - platform-security
+      tls:
+        certResolver: letsencrypt
+
+    truck:
+      entryPoints:
+        - websecure
+      rule: Host(`truck.neuron-epn.com`)
+      service: oauth2-proxy-truck
+      middlewares:
+        - platform-security
+      tls:
+        certResolver: letsencrypt
+
+    spbu:
+      entryPoints:
+        - websecure
+      rule: Host(`spbu.neuron-epn.com`)
+      service: oauth2-proxy-spbu
+      middlewares:
+        - platform-security
+      tls:
+        certResolver: letsencrypt
+
+    dispatch:
+      entryPoints:
+        - websecure
+      rule: Host(`dispatch.neuron-epn.com`)
+      service: oauth2-proxy-dispatch
+      middlewares:
+        - platform-security
+      tls:
+        certResolver: letsencrypt
+
+    planner:
+      entryPoints:
+        - websecure
+      rule: Host(`planner.neuron-epn.com`)
+      service: oauth2-proxy-planner
+      middlewares:
+        - platform-security
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: http://keycloak:8080
+
+    oauth2-proxy-portal:
+      loadBalancer:
+        servers:
+          - url: http://oauth2-proxy-portal:4180
+
+    oauth2-proxy-truck:
+      loadBalancer:
+        servers:
+          - url: http://oauth2-proxy-truck:4180
+
+    oauth2-proxy-spbu:
+      loadBalancer:
+        servers:
+          - url: http://oauth2-proxy-spbu:4180
+
+    oauth2-proxy-dispatch:
+      loadBalancer:
+        servers:
+          - url: http://oauth2-proxy-dispatch:4180
+
+    oauth2-proxy-planner:
+      loadBalancer:
+        servers:
+          - url: http://oauth2-proxy-planner:4180
