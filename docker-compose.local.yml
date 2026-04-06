@@ -57,6 +57,8 @@ services:
       KC_HEALTH_ENABLED: "true"
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ./infra/keycloak/themes/petrofin:/opt/keycloak/themes/petrofin:ro
     depends_on:
       keycloak-db:
         condition: service_healthy
