@@ -21,7 +21,7 @@ Local hosts:
 - `auth.localhost`
 - `truck.localhost`
 - `spbu.localhost`
-- `dispatch.localhost`
+- `planner.localhost`
 
 VPS hosts typically become:
 
@@ -29,7 +29,7 @@ VPS hosts typically become:
 - `auth.example.com`
 - `truck.example.com`
 - `spbu.example.com`
-- `dispatch.example.com`
+- `planner.example.com`
 
 ### HTTPS
 
@@ -55,7 +55,7 @@ Example:
 - `auth.example.com -> VPS_IP`
 - `truck.example.com -> VPS_IP`
 - `spbu.example.com -> VPS_IP`
-- `dispatch.example.com -> VPS_IP`
+- `planner.example.com -> VPS_IP`
 
 ### Environment Changes
 
@@ -69,7 +69,7 @@ KEYCLOAK_HOST=auth.example.com
 KEYCLOAK_INTERNAL_URL=https://auth.example.com
 TRUCK_HOST=truck.example.com
 SPBU_HOST=spbu.example.com
-DISPATCH_HOST=dispatch.example.com
+PLANNER_HOST=planner.example.com
 DOMAIN=example.com
 ACME_EMAIL=ops@example.com
 ```
@@ -113,7 +113,7 @@ Recommended order:
 1. Move the local hostnames to real DNS names.
 2. Switch Traefik to HTTPS.
 3. Keep OAuth2 Proxy in place during the first VPS rollout.
-4. Swap placeholders for real app images or builds.
+4. Keep the current local service naming and swap only public hosts, scheme, and secrets.
 5. Migrate apps to native OIDC later, one at a time.
 
 This keeps the first VPS deployment simple and reduces the number of moving parts changed at once.

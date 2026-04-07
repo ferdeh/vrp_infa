@@ -5,7 +5,7 @@ This repository uses one OAuth2 Proxy instance per protected web hostname:
 - `oauth2-proxy-portal`
 - `oauth2-proxy-truck`
 - `oauth2-proxy-spbu`
-- `oauth2-proxy-dispatch`
+- `oauth2-proxy-planner`
 
 Why:
 

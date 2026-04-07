@@ -29,7 +29,7 @@ The local compose stack injects these values into the `portal` container:
 - `NEXT_PUBLIC_PORTAL_BASE_URL=http://portal.localhost:8088`
 - `NEXT_PUBLIC_TRUCK_URL=http://truck.localhost:8088`
 - `NEXT_PUBLIC_SPBU_URL=http://spbu.localhost:8088`
-- `NEXT_PUBLIC_DISPATCH_URL=http://dispatch.localhost:8088`
+- `NEXT_PUBLIC_PLANNER_URL=http://planner.localhost:8088`
 - `NEXT_PUBLIC_LOGOUT_URL=http://auth.localhost:8088/realms/vrp-platform/protocol/openid-connect/logout`
 - `PORTAL_AUTH_MODE=headers`
 
@@ -43,7 +43,7 @@ PORTAL_HOST=portal.localhost
 KEYCLOAK_HOST=auth.localhost
 TRUCK_HOST=truck.localhost
 SPBU_HOST=spbu.localhost
-DISPATCH_HOST=dispatch.localhost
+PLANNER_HOST=planner.localhost
 ```
 
 ## Rebuild and Run

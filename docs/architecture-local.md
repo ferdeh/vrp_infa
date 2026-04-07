@@ -6,7 +6,7 @@ This repository is the shared infrastructure layer for a multi-app VRP platform:
 
 - Truck Master Data
 - SPBU Master Data
-- VRP Dispatch
+- VRP Planner
 - A future shared portal
 
 The implementation is optimized for local Docker-based development first. It keeps the infrastructure understandable, swap-friendly, and ready to move onto a single Ubuntu VPS later.
@@ -20,35 +20,37 @@ flowchart LR
     Portal["portal"]
     Truck["truck-frontend"]
     Spbu["spbu-frontend"]
-    Dispatch["dispatch-frontend"]
+    Planner["planner-frontend"]
     PortalAuth["oauth2-proxy-portal"]
     TruckAuth["oauth2-proxy-truck"]
     SpbuAuth["oauth2-proxy-spbu"]
-    DispatchAuth["oauth2-proxy-dispatch"]
+    PlannerAuth["oauth2-proxy-planner"]
     Keycloak["Keycloak"]
     Postgres["PostgreSQL"]
     TruckApi["truck-backend"]
     SpbuApi["spbu-backend"]
-    DispatchApi["dispatch-backend"]
+    PlannerApi["planner-backend"]
+    PlannerDb["planner-db"]
 
     Browser --> Traefik
     Traefik --> Portal
     Traefik --> Truck
     Traefik --> Spbu
-    Traefik --> Dispatch
+    Traefik --> Planner
     Traefik --> Keycloak
     Traefik --> PortalAuth
     Traefik --> TruckAuth
     Traefik --> SpbuAuth
-    Traefik --> DispatchAuth
+    Traefik --> PlannerAuth
     PortalAuth --> Keycloak
     TruckAuth --> Keycloak
     SpbuAuth --> Keycloak
-    DispatchAuth --> Keycloak
+    PlannerAuth --> Keycloak
     Keycloak --> Postgres
     Truck --> TruckApi
     Spbu --> SpbuApi
-    Dispatch --> DispatchApi
+    Planner --> PlannerApi
+    PlannerApi --> PlannerDb
 ```
 
 ## Request Flow
@@ -91,7 +93,7 @@ The Keycloak bootstrap creates the `vrp-platform` realm and these realm roles:
 - `ops`
 - `masterdata_truck`
 - `masterdata_spbu`
-- `dispatcher`
+- `planner_user`
 - `vrp_user`
 - `viewer`
 
@@ -104,7 +106,7 @@ Public HTTP entrypoints:
 - `portal`
 - `truck-frontend`
 - `spbu-frontend`
-- `dispatch-frontend`
+- `planner-frontend`
 - `keycloak`
 - per-app `oauth2-proxy` endpoints under `/oauth2/*`
 
@@ -112,7 +114,8 @@ Private-only services:
 
 - `truck-backend`
 - `spbu-backend`
-- `dispatch-backend`
+- `planner-backend`
+- `planner-db`
 - `keycloak-db`
 
 The backends stay off Traefik by default. This matches the stated goal that internal services remain private unless explicitly needed.

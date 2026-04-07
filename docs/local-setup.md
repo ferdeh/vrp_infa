@@ -19,7 +19,7 @@ Configured defaults:
 - `auth.localhost`
 - `truck.localhost`
 - `spbu.localhost`
-- `dispatch.localhost`
+- `planner.localhost`
 
 These are the default hostnames. When `TRAEFIK_HTTP_PORT=80`, open them without a port. If you override the port, for example `TRAEFIK_HTTP_PORT=8088`, open the same hostnames with `:8088` appended.
 
@@ -36,7 +36,7 @@ KEYCLOAK_HOST=auth.localhost
 KEYCLOAK_INTERNAL_URL=http://auth.localhost
 TRUCK_HOST=truck.localhost
 SPBU_HOST=spbu.localhost
-DISPATCH_HOST=dispatch.localhost
+PLANNER_HOST=planner.localhost
 ```
 
 ### Mode 2: hosts file with `*.vrp.local`
@@ -56,7 +56,7 @@ KEYCLOAK_HOST=auth.vrp.local
 KEYCLOAK_INTERNAL_URL=http://auth.vrp.local
 TRUCK_HOST=truck.vrp.local
 SPBU_HOST=spbu.vrp.local
-DISPATCH_HOST=dispatch.vrp.local
+PLANNER_HOST=planner.vrp.local
 ```
 
 Add these entries to `/etc/hosts`:
@@ -66,7 +66,7 @@ Add these entries to `/etc/hosts`:
 127.0.0.1 auth.vrp.local
 127.0.0.1 truck.vrp.local
 127.0.0.1 spbu.vrp.local
-127.0.0.1 dispatch.vrp.local
+127.0.0.1 planner.vrp.local
 ```
 
 ## Initial Setup
@@ -100,15 +100,15 @@ The local compose stack starts:
 - Keycloak
 - Keycloak bootstrap job
 - 4 OAuth2 Proxy instances
-- 4 routed frontend placeholders
-- 3 backend placeholders on the private network
+- 4 routed application frontends
+- 4 private application backends and databases on the private network
 
 ## Local Test Checklist
 
 ### Traefik
 
 - Open `http://localhost:8081/dashboard/`
-- Confirm routers for `portal`, `truck`, `spbu`, `dispatch`, and `keycloak` exist
+- Confirm routers for `portal`, `truck`, `spbu`, `planner`, and `keycloak` exist
 
 ### Keycloak
 
@@ -132,15 +132,11 @@ The local compose stack starts:
 
 - `http://truck.localhost`
 - `http://spbu.localhost`
-- `http://dispatch.localhost`
+- `http://planner.localhost`
 
 If `.env` uses another Traefik port, open the same hostnames with that port attached, for example `http://truck.localhost:8088`.
 
-Each frontend placeholder page confirms:
-
-- the routed hostname
-- the local auth pattern
-- the intended backend service name that will be swapped later
+Planner, Truck, and SPBU should each load their real frontends through OAuth2 Proxy on the routed hostname.
 
 ## Useful Commands
 

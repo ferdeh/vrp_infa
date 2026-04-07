@@ -55,6 +55,9 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
+      KC_SPI_THEME_STATIC_MAX_AGE: "-1"
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     volumes:
@@ -240,7 +243,7 @@ services:
       - traefik.http.services.oauth2-proxy-spbu.loadbalancer.server.port=4180
     restart: unless-stopped
 
-  oauth2-proxy-dispatch:
+  oauth2-proxy-planner:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
     environment:
       OAUTH2_PROXY_PROVIDER: oidc
@@ -251,15 +254,15 @@ services:
       OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
       OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
       OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
-      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-dispatch
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-planner
       OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
-      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_dispatch
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_planner
       OAUTH2_PROXY_COOKIE_SECURE: "false"
       OAUTH2_PROXY_COOKIE_SAMESITE: lax
-      OAUTH2_PROXY_COOKIE_DOMAINS: ${DISPATCH_HOST}
-      OAUTH2_PROXY_WHITELIST_DOMAINS: .${DISPATCH_HOST}
-      OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
+      OAUTH2_PROXY_COOKIE_DOMAINS: ${PLANNER_HOST}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${PLANNER_HOST},${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      OAUTH2_PROXY_REDIRECT_URL: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/oauth2/callback
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_EMAIL_DOMAINS: '*'
       OAUTH2_PROXY_SCOPE: openid profile email roles
@@ -271,20 +274,22 @@ services:
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
-      OAUTH2_PROXY_UPSTREAMS: http://dispatch-frontend:80
+      OAUTH2_PROXY_UPSTREAMS: http://planner-frontend:80
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
+      planner-frontend:
+        condition: service_healthy
     networks:
       - edge
       - private
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COMPOSE_PROJECT_NAME:-vrp-infra}_edge
-      - traefik.http.routers.dispatch.rule=Host(`${DISPATCH_HOST}`)
-      - traefik.http.routers.dispatch.entrypoints=web
-      - traefik.http.routers.dispatch.middlewares=platform-security@file
-      - traefik.http.services.oauth2-proxy-dispatch.loadbalancer.server.port=4180
+      - traefik.http.routers.planner.rule=Host(`${PLANNER_HOST}`)
+      - traefik.http.routers.planner.entrypoints=web
+      - traefik.http.routers.planner.middlewares=platform-security@file
+      - traefik.http.services.oauth2-proxy-planner.loadbalancer.server.port=4180
     restart: unless-stopped
 
   portal:
@@ -299,9 +304,13 @@ services:
       NEXT_PUBLIC_PORTAL_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
       NEXT_PUBLIC_TRUCK_URL: ${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
       NEXT_PUBLIC_SPBU_URL: ${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
-      NEXT_PUBLIC_DISPATCH_URL: ${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      NEXT_PUBLIC_PLANNER_URL: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
       NEXT_PUBLIC_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
       PORTAL_AUTH_MODE: headers
+      PORTAL_KEYCLOAK_BASE_URL: http://keycloak:8080
+      PORTAL_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      PORTAL_KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      PORTAL_KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     expose:
       - "3000"
     healthcheck:
@@ -555,19 +564,81 @@ services:
       - private
     restart: unless-stopped
 
-  dispatch-frontend:
-    image: nginx:1.27-alpine
+  planner-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PLANNER_DB_NAME}
+      POSTGRES_USER: ${PLANNER_DB_USER}
+      POSTGRES_PASSWORD: ${PLANNER_DB_PASSWORD}
     volumes:
-      - ./infra/placeholders/dispatch-frontend:/usr/share/nginx/html:ro
+      - planner_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${PLANNER_DB_USER} -d ${PLANNER_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - private
     restart: unless-stopped
 
-  dispatch-backend:
-    image: hashicorp/http-echo:1.0.0
-    command:
-      - -listen=:8080
-      - '-text={"service":"dispatch-backend","status":"ok","message":"Placeholder backend. Replace with the real dispatch backend later."}'
+  planner-backend:
+    build:
+      context: ../vrp_planner/backend
+      dockerfile: Dockerfile
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"
+    environment:
+      APP_NAME: vrp_planner
+      APP_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      DATABASE_URL: postgresql+psycopg2://${PLANNER_DB_USER}:${PLANNER_DB_PASSWORD}@planner-db:${PLANNER_DB_PORT:-5432}/${PLANNER_DB_NAME}
+      MASTER_DATA_API_BASE_URL: http://spbu-backend:8000
+      TRUCK_MASTER_DATA_API_BASE_URL: http://truck-backend:8000
+      CORS_ORIGINS: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      PLANNER_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+      PLANNER_AUTH_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
+      PLANNER_OAUTH_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-planner
+    depends_on:
+      planner-db:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - private
+    restart: unless-stopped
+
+  planner-frontend:
+    build:
+      context: ../vrp_planner/frontend
+      dockerfile: Dockerfile
+    environment:
+      PLANNER_API_UPSTREAM: http://planner-backend:8080
+      PORTAL_URL: ${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
+    depends_on:
+      planner-backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - private
     restart: unless-stopped
@@ -584,3 +655,4 @@ volumes:
   truck_db_data:
   truck_imports_data:
   spbu_db_data:
+  planner_db_data:

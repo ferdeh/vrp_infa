@@ -8,22 +8,23 @@ This repository is the platform shell. The business applications stay in their o
   Example local checkout: `../truck_master_data`
 - SPBU Master Data
   Example local checkout: `../SPBU_Network_Masterdata`
-- VRP Dispatch
+- VRP Planner
   Example local checkout: `../vrp_planner`
 
-This repo keeps placeholders so the platform layer can be developed before those apps are pulled into the same local workflow. The exception is the portal, which is now wired to the real `../vrp_portal` Next.js app in local compose.
+This repo is the runtime shell for the platform. The application repositories stay source-code-only, while the actual local runtime is orchestrated from this compose stack. The portal, truck, SPBU, and planner apps are all built from sibling repositories in local compose.
 
-## Current Placeholder Mapping
+## Current Runtime Mapping
 
 | Final target | Current placeholder service | Exposure |
 | --- | --- | --- |
-| Portal | `portal` | Routed by Traefik, backed by `../vrp_portal` in local compose |
-| Truck UI | `truck-frontend` | Routed by Traefik |
+| Portal | `portal` | Routed by Traefik, built from `../vrp_portal` |
+| Truck UI | `truck-frontend` | Routed by Traefik, built from `../truck_master_data/web` |
 | Truck API | `truck-backend` | Private only |
-| SPBU UI | `spbu-frontend` | Routed by Traefik |
+| SPBU UI | `spbu-frontend` | Routed by Traefik, built from `../SPBU_Network_Masterdata/spbu-network-mvp/frontend` |
 | SPBU API | `spbu-backend` | Private only |
-| Dispatch UI | `dispatch-frontend` | Routed by Traefik |
-| Dispatch API | `dispatch-backend` | Private only |
+| Planner UI | `planner-frontend` | Routed by Traefik, built from `../vrp_planner/frontend` |
+| Planner API | `planner-backend` | Private only |
+| Planner DB | `planner-db` | Private only |
 
 ## Integration Mode A: Build from a Local Repo Path
 
@@ -56,41 +57,16 @@ Benefits:
 - The placeholder can be swapped with minimal blast radius
 - The service name `portal` stays stable for `oauth2-proxy-portal`
 
-## Integration Mode B: Proxy to an Already Running Local App
+## Standalone App Repos
 
-Use this when the application is already running on the host, for example:
-
-- Truck backend on `http://localhost:8002`
-- SPBU backend on `http://localhost:8000`
-- Dispatch backend on `http://localhost:8080`
-
-This mode is useful while application teams keep their current local workflow unchanged.
-
-Recommended pattern:
-
-1. Keep Traefik in this repo as the platform entrypoint.
-2. Replace the placeholder container with a tiny bridge container or file-provider route that forwards to `host.docker.internal`.
-3. Keep the public hostnames stable.
-
-Example service bridge:
-
-```yaml
-truck-frontend:
-  image: nginx:1.27-alpine
-  extra_hosts:
-    - host.docker.internal:host-gateway
-```
-
-For Traefik, the cleaner long-term option is usually a small file-provider service definition that points to `http://host.docker.internal:3002` or a dedicated bridge container.
+Standalone execution inside app repositories is now considered secondary only. The recommended local runtime is always the integrated platform in `vrp_infa`, so browser access stays behind Traefik, OAuth2 Proxy, and Keycloak, and container-to-container calls stay on Docker service names.
 
 ## Recommended Integration Order
 
-1. Replace frontends first while keeping backend placeholders internal.
-2. Confirm SSO flow still works through OAuth2 Proxy.
-3. Replace the matching backend service next.
-4. Add app-specific environment variables only after the container swap is stable.
-
-This keeps the platform shell stable while each app is onboarded.
+1. Build the real frontend and backend from the sibling app repository.
+2. Keep the public hostname and `oauth2-proxy-*` service name stable.
+3. Keep backend and databases private on the Docker network.
+4. Prefer same-origin `/api` forwarding from frontend containers to backend containers.
 
 ## Future Native OIDC per App
 

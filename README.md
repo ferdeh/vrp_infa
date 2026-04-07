@@ -7,7 +7,7 @@ Local-first infrastructure repository for a multi-app VRP platform. It provides 
 - PostgreSQL for Keycloak state
 - OAuth2 Proxy as a pragmatic phase-1 SSO layer for web apps
 - Docker Compose for local orchestration
-- Local integration of the real portal app plus replaceable placeholder services for 3 application domains
+- Local integration of the real portal, truck, SPBU, and planner application runtimes from sibling repositories
 
 ## Architecture Summary
 
@@ -16,9 +16,9 @@ Phase 1 keeps local development simple:
 - `Traefik` receives all browser traffic on local hostnames such as `portal.localhost` and `auth.localhost`.
 - `Keycloak` owns users, roles, realm configuration, and OAuth clients.
 - `OAuth2 Proxy` is deployed once per routed web app host. Each instance fronts one app hostname, delegates login to Keycloak, and proxies the authenticated request to the matching frontend.
-- `portal`, `truck-frontend`, `spbu-frontend`, and `dispatch-frontend` are exposed through Traefik.
+- `portal`, `truck-frontend`, `spbu-frontend`, and `planner-frontend` are exposed through Traefik.
 - `portal` is built from `../vrp_portal` and runs as a production Next.js container on the private Docker network.
-- `truck-backend`, `spbu-backend`, and `dispatch-backend` stay on the private Docker network by default.
+- `truck-backend`, `spbu-backend`, `planner-backend`, and their databases stay on the private Docker network by default.
 
 This is intentionally local-first and HTTP-only. The production path is documented, but the main implementation optimizes for fast local setup.
 
@@ -44,8 +44,6 @@ This is intentionally local-first and HTTP-only. The production path is document
 │   ├── oauth2-proxy
 │   │   └── README.md
 │   ├── placeholders
-│   │   ├── dispatch-frontend
-│   │   │   └── index.html
 │   │   ├── portal
 │   │   │   └── index.html
 │   │   ├── shared
@@ -89,7 +87,7 @@ This is intentionally local-first and HTTP-only. The production path is document
    - `http://auth.localhost`
    - `http://truck.localhost`
    - `http://spbu.localhost`
-   - `http://dispatch.localhost`
+   - `http://planner.localhost`
    - `http://localhost:8081/dashboard/` for the Traefik dashboard by default
 
    If your local `.env` uses another port, for example `TRAEFIK_HTTP_PORT=8088` and `PLATFORM_PUBLIC_PORT_SUFFIX=:8088`, open the same hostnames with that port attached:
@@ -98,7 +96,7 @@ This is intentionally local-first and HTTP-only. The production path is document
    - `http://auth.localhost:8088`
    - `http://truck.localhost:8088`
    - `http://spbu.localhost:8088`
-   - `http://dispatch.localhost:8088`
+   - `http://planner.localhost:8088`
 
 4. Log in with a sample Keycloak user after bootstrap completes.
 
@@ -110,7 +108,7 @@ This is intentionally local-first and HTTP-only. The production path is document
    - `olivia.ops`
    - `tom.truck`
    - `sarah.spbu`
-   - `david.dispatch`
+   - `paula.planner`
    - `victor.viewer`
 
    The shared sample password is stored in `.env` as `KEYCLOAK_SAMPLE_PASSWORD`.
@@ -123,7 +121,7 @@ Default mode uses `*.localhost` and does not need `/etc/hosts` changes:
 - `auth.localhost`
 - `truck.localhost`
 - `spbu.localhost`
-- `dispatch.localhost`
+- `planner.localhost`
 
 Alternate mode uses a hosts file and a custom local domain:
 
@@ -131,7 +129,7 @@ Alternate mode uses a hosts file and a custom local domain:
 - `auth.vrp.local`
 - `truck.vrp.local`
 - `spbu.vrp.local`
-- `dispatch.vrp.local`
+- `planner.vrp.local`
 
 Switch modes by editing `.env`. See [docs/local-setup.md](docs/local-setup.md).
 
@@ -144,24 +142,16 @@ If you change `TRAEFIK_HTTP_PORT` away from `80`, also set `PLATFORM_PUBLIC_PORT
 
 Also keep `KEYCLOAK_INTERNAL_URL` on the internal Docker address, for example `http://auth.localhost`. Containers should use the internal Traefik port `80` even when the host publishes Traefik on another port such as `8088`.
 
-## Replacing Placeholders Later
+## Integrated Runtime Model
 
-The remaining placeholder services are intentionally named after the target platform services:
+The intended local workflow is now:
 
-- `truck-frontend`
-- `truck-backend`
-- `spbu-frontend`
-- `spbu-backend`
-- `dispatch-frontend`
-- `dispatch-backend`
+- source code lives in sibling repositories such as `../vrp_portal`, `../truck_master_data`, `../SPBU_Network_Masterdata/spbu-network-mvp`, and `../vrp_planner`
+- runtime services live in this repo's `docker-compose.local.yml`
+- browser access goes only through routed platform hosts such as `portal.localhost:8088` and `planner.localhost:8088`
+- frontend-to-backend and backend-to-database traffic uses Docker service names, not `localhost`
 
-The portal service is already wired to the real `vrp_portal` repo. The other placeholders can still be swapped later in two supported ways:
-
-- Replace a placeholder service with `build:` or `image:` from a real app repo
-- Keep the real app running outside this stack and point Traefik or a bridge service at the existing local port
-
-See [docs/repo-integration.md](docs/repo-integration.md).
-See [docs/portal-integration.md](docs/portal-integration.md) for the concrete portal wiring, rebuild flow, header expectations, and rollback steps.
+See [docs/repo-integration.md](docs/repo-integration.md), [docs/portal-integration.md](docs/portal-integration.md), [docs/spbu-integration.md](docs/spbu-integration.md), and [docs/planner-integration.md](docs/planner-integration.md).
 
 ## Documentation
 
@@ -169,11 +159,13 @@ See [docs/portal-integration.md](docs/portal-integration.md) for the concrete po
 - [Local setup](docs/local-setup.md)
 - [Repository integration](docs/repo-integration.md)
 - [Portal integration](docs/portal-integration.md)
+- [SPBU integration](docs/spbu-integration.md)
+- [Planner integration](docs/planner-integration.md)
 - [VPS migration](docs/vps-migration.md)
 
 ## Known Limitations
 
 - Local mode is HTTP only by design.
 - OAuth2 Proxy is implemented per app hostname to avoid cookie-domain edge cases during local development.
-- The backend placeholders are internal-only and do not model real application APIs yet.
+- OAuth2 Proxy is still the auth boundary for all application frontends in local mode.
 - The production compose file is an example path, not a production-hardened deployment.

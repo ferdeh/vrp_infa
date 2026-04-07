@@ -7,10 +7,11 @@ ROLE_NAMES=(
   ops
   masterdata_truck
   masterdata_spbu
-  dispatcher
+  planner_user
   vrp_user
   viewer
 )
+LOGIN_THEME_NAME="petrofin"
 
 log() {
   printf '[keycloak-bootstrap] %s\n' "$1"
@@ -87,6 +88,14 @@ create_realm() {
   /opt/keycloak/bin/kcadm.sh create realms \
     -s realm="${KEYCLOAK_REALM}" \
     -s enabled=true \
+    -s displayName="VRP Platform" \
+    -s loginTheme="${LOGIN_THEME_NAME}"
+}
+
+configure_realm_theme() {
+  log "applying login theme ${LOGIN_THEME_NAME} to realm ${KEYCLOAK_REALM}"
+  /opt/keycloak/bin/kcadm.sh update "realms/${KEYCLOAK_REALM}" \
+    -s loginTheme="${LOGIN_THEME_NAME}" \
     -s displayName="VRP Platform"
 }
 
@@ -170,6 +179,8 @@ write_client_file() {
   local client_id="$1"
   local root_url="$2"
   local output_file="$3"
+  local redirect_url="${root_url}/oauth2/callback"
+  local logout_redirect_url="${root_url}/oauth2/sign_in"
 
   cat > "${output_file}" <<EOF
 {
@@ -184,13 +195,12 @@ write_client_file() {
   "frontchannelLogout": true,
   "attributes": {
     "pkce.code.challenge.method": "S256",
-    "post.logout.redirect.uris": "+"
+    "post.logout.redirect.uris": "${logout_redirect_url}"
   },
   "secret": "${OAUTH2_PROXY_CLIENT_SECRET}",
   "redirectUris": [
-    "${root_url}/oauth2/callback",
-    "${root_url}/oauth2/sign_in",
-    "${root_url}"
+    "${redirect_url}",
+    "${logout_redirect_url}"
   ],
   "webOrigins": [
     "${root_url}"
@@ -241,7 +251,6 @@ main() {
   require_env PORTAL_HOST
   require_env TRUCK_HOST
   require_env SPBU_HOST
-  require_env DISPATCH_HOST
   require_env PLANNER_HOST
 
   wait_for_keycloak
@@ -253,20 +262,19 @@ main() {
   create_user "olivia.ops" "olivia.ops@local.vrp" "Olivia" "Ops"
   create_user "tom.truck" "tom.truck@local.vrp" "Tom" "Truck"
   create_user "sarah.spbu" "sarah.spbu@local.vrp" "Sarah" "SPBU"
-  create_user "david.dispatch" "david.dispatch@local.vrp" "David" "Dispatch"
+  create_user "paula.planner" "paula.planner@local.vrp" "Paula" "Planner"
   create_user "victor.viewer" "victor.viewer@local.vrp" "Victor" "Viewer"
 
   assign_roles "alice.admin" admin ops vrp_user
   assign_roles "olivia.ops" ops vrp_user
   assign_roles "tom.truck" masterdata_truck vrp_user
   assign_roles "sarah.spbu" masterdata_spbu vrp_user
-  assign_roles "david.dispatch" dispatcher vrp_user
+  assign_roles "paula.planner" planner_user
   assign_roles "victor.viewer" viewer
 
   create_client "${OAUTH2_PROXY_CLIENT_ID}-portal" "${PLATFORM_PUBLIC_SCHEME}://${PORTAL_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
   create_client "${OAUTH2_PROXY_CLIENT_ID}-truck" "${PLATFORM_PUBLIC_SCHEME}://${TRUCK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
   create_client "${OAUTH2_PROXY_CLIENT_ID}-spbu" "${PLATFORM_PUBLIC_SCHEME}://${SPBU_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
-  create_client "${OAUTH2_PROXY_CLIENT_ID}-dispatch" "${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
   create_client "${OAUTH2_PROXY_CLIENT_ID}-planner" "${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}"
 
   log "bootstrap complete"
