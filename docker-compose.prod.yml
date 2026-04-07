@@ -389,6 +389,8 @@ services:
       PORTAL_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
       PORTAL_KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       PORTAL_KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ../vrp_portal/data:/app/data
     expose:
       - "3000"
     healthcheck:
