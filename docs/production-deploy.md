@@ -90,6 +90,7 @@ Production notes:
 - `KEYCLOAK_SAMPLE_PASSWORD` should be rotated or the sample users removed before go-live.
 - `dispatch` is still a placeholder service in this stack.
 - SPBU and Truck stay private behind Traefik and `oauth2-proxy`.
+- The `portal` container now mounts the sibling repositories read-only under `/workspace` and uses `PORTAL_GIT_WORKSPACE_ROOT=/workspace`, so keep those repositories present on the server at the expected sibling paths before running `./scripts/deploy-production.sh`.
 
 ## Install Auto-Start
 

@@ -13,6 +13,16 @@ This repository is the platform shell. The business applications stay in their o
 
 This repo is the runtime shell for the platform. The application repositories stay source-code-only, while the actual local runtime is orchestrated from this compose stack. The portal, truck, SPBU, and planner apps are all built from sibling repositories in local compose.
 
+The `portal` service also receives a read-only workspace view inside the container:
+
+- `/workspace/vrp_portal`
+- `/workspace/vrp_infa`
+- `/workspace/vrp_planner`
+- `/workspace/truck_master_data`
+- `/workspace/SPBU_Network_Masterdata`
+
+Compose sets `PORTAL_GIT_WORKSPACE_ROOT=/workspace` so portal features can resolve those repositories from a stable in-container path.
+
 ## Current Runtime Mapping
 
 | Final target | Current placeholder service | Exposure |
@@ -56,6 +66,7 @@ Benefits:
 - OAuth2 Proxy routing does not need to change
 - The placeholder can be swapped with minimal blast radius
 - The service name `portal` stays stable for `oauth2-proxy-portal`
+- The portal can inspect the sibling repositories through the shared read-only `/workspace` mount
 
 ## Standalone App Repos
 

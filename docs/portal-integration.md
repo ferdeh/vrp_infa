@@ -19,6 +19,7 @@ The auth flow stays the same:
 - the app listens on container port `3000`
 - `oauth2-proxy-portal` now proxies to `http://portal:3000`
 - the portal container gets the required runtime environment variables
+- the portal container gets a read-only `/workspace` mount for the sibling repositories
 - proxy header forwarding is explicit with `OAUTH2_PROXY_PASS_USER_HEADERS=true`
 
 ## Portal Runtime Environment
@@ -32,6 +33,7 @@ The local compose stack injects these values into the `portal` container:
 - `NEXT_PUBLIC_PLANNER_URL=http://planner.localhost:8088`
 - `NEXT_PUBLIC_LOGOUT_URL=http://auth.localhost:8088/realms/vrp-platform/protocol/openid-connect/logout`
 - `PORTAL_AUTH_MODE=headers`
+- `PORTAL_GIT_WORKSPACE_ROOT=/workspace`
 
 Those URLs come from the existing `.env` values:
 
@@ -45,6 +47,16 @@ TRUCK_HOST=truck.localhost
 SPBU_HOST=spbu.localhost
 PLANNER_HOST=planner.localhost
 ```
+
+The local compose stack mounts these repositories into the portal container as read-only paths under `/workspace`:
+
+- `/workspace/vrp_portal`
+- `/workspace/vrp_infa`
+- `/workspace/vrp_planner`
+- `/workspace/truck_master_data`
+- `/workspace/SPBU_Network_Masterdata`
+
+That gives portal code a stable in-container workspace root for cross-repository inspection without making the sibling checkouts writable from inside the container.
 
 ## Rebuild and Run
 

@@ -148,6 +148,7 @@ The intended local workflow is now:
 
 - source code lives in sibling repositories such as `../vrp_portal`, `../truck_master_data`, `../SPBU_Network_Masterdata/spbu-network-mvp`, and `../vrp_planner`
 - runtime services live in this repo's `docker-compose.local.yml`
+- the `portal` container also mounts the sibling repositories read-only under `/workspace` so portal features can inspect the integrated workspace without cloning inside the container
 - browser access goes only through routed platform hosts such as `portal.localhost:8088` and `planner.localhost:8088`
 - frontend-to-backend and backend-to-database traffic uses Docker service names, not `localhost`
 

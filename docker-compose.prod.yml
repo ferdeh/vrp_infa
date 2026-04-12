@@ -385,12 +385,18 @@ services:
       NEXT_PUBLIC_DISPATCH_URL: ${PLATFORM_PUBLIC_SCHEME}://${DISPATCH_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
       NEXT_PUBLIC_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
       PORTAL_AUTH_MODE: headers
+      PORTAL_GIT_WORKSPACE_ROOT: /workspace
       PORTAL_KEYCLOAK_BASE_URL: http://keycloak:8080
       PORTAL_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
       PORTAL_KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       PORTAL_KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     volumes:
       - ../vrp_portal/data:/app/data
+      - ../vrp_portal:/workspace/vrp_portal:ro
+      - ../vrp_infa:/workspace/vrp_infa:ro
+      - ../vrp_planner:/workspace/vrp_planner:ro
+      - ../truck_master_data:/workspace/truck_master_data:ro
+      - ../SPBU_Network_Masterdata:/workspace/SPBU_Network_Masterdata:ro
     expose:
       - "3000"
     healthcheck:
