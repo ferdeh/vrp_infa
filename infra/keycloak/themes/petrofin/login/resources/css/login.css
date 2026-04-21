@@ -1,0 +1,353 @@
+html.login-pf,
+body.login-pf,
+.login-pf body,
+body.login-pf-page {
+  min-height: 100vh;
+  margin: 0;
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  color: #24456b;
+  background:
+    radial-gradient(circle at top left, rgba(178, 207, 0, 0.08), transparent 20%),
+    radial-gradient(circle at top right, rgba(10, 114, 187, 0.06), transparent 24%),
+    linear-gradient(180deg, #fbfaf8 0%, #f7f5f2 48%, #fbfaf8 100%) !important;
+  background-color: #f8f7f4 !important;
+  background-image:
+    radial-gradient(circle at top left, rgba(178, 207, 0, 0.08), transparent 20%),
+    radial-gradient(circle at top right, rgba(10, 114, 187, 0.06), transparent 24%),
+    linear-gradient(180deg, #fbfaf8 0%, #f7f5f2 48%, #fbfaf8 100%) !important;
+  position: relative;
+  overflow-x: hidden;
+}
+
+html.login-pf,
+.login-pf body {
+  background: transparent;
+}
+
+html.login-pf::before,
+html.login-pf::after,
+body.login-pf::before,
+body.login-pf::after,
+body.login-pf-page::before,
+body.login-pf-page::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  border-radius: 999px;
+  z-index: 0;
+}
+
+html.login-pf::before,
+body.login-pf::before,
+body.login-pf-page::before {
+  top: -220px;
+  left: -140px;
+  width: 520px;
+  height: 520px;
+  border: 48px solid rgba(228, 226, 222, 0.3);
+}
+
+html.login-pf::after,
+body.login-pf::after,
+body.login-pf-page::after {
+  top: -260px;
+  right: -160px;
+  width: 620px;
+  height: 620px;
+  border: 58px solid rgba(231, 229, 225, 0.32);
+}
+
+#kc-header {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 42px 16px 18px;
+}
+
+#kc-header-wrapper {
+  width: min(100%, 480px);
+  min-height: 132px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  border: 1px solid rgba(50, 68, 92, 0.08);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at right top, rgba(10, 114, 187, 0.04), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 248, 245, 0.96) 100%);
+  box-shadow: 0 18px 44px rgba(80, 92, 108, 0.07);
+  position: relative;
+  overflow: hidden;
+  color: transparent;
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: 18px auto auto 24px;
+  width: 236px;
+  height: 86px;
+  background: url("../img/petrofin-logo.webp") no-repeat left center / contain;
+}
+
+#kc-header-wrapper::after {
+  content: "Secure platform sign-in";
+  position: absolute;
+  inset: 26px 24px auto auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(178, 207, 0, 0.12);
+  color: #0a72bb;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+#kc-content {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 480px);
+  margin: 0 auto;
+  padding: 0 16px 164px;
+  box-sizing: border-box;
+}
+
+#kc-content::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  transform: translateX(-50%);
+  width: min(100%, 280px);
+  height: 74px;
+  background: url("../img/neuron-footer.jpg") no-repeat center / contain;
+  opacity: 0.98;
+  pointer-events: none;
+}
+
+#kc-content-wrapper {
+  display: block;
+}
+
+#kc-content-wrapper::before,
+#kc-content-wrapper::after {
+  content: none;
+}
+
+#kc-form-wrapper,
+#kc-info-wrapper {
+  border: 1px solid rgba(50, 68, 92, 0.08);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 248, 245, 0.96) 100%);
+  box-shadow: 0 18px 44px rgba(80, 92, 108, 0.07);
+}
+
+#kc-form-wrapper {
+  padding: 28px 28px 24px;
+}
+
+#kc-page-title {
+  margin: 0 0 8px;
+  color: #24456b;
+  font-size: 31px;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
+#kc-page-title + p,
+#kc-page-title + div,
+.instruction {
+  color: #6d7786;
+  text-align: center;
+}
+
+.kcFormGroupClass,
+.form-group {
+  margin-bottom: 16px;
+}
+
+.kcLabelClass,
+.control-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #6d7786;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pf-v5-c-form-control,
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  width: 100%;
+  min-height: 54px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border: 1px solid rgba(50, 68, 92, 0.1);
+  border-radius: 18px;
+  background: #ffffff;
+  color: #24456b;
+  box-shadow: 0 3px 12px rgba(80, 92, 108, 0.04);
+}
+
+.pf-v5-c-form-control:focus,
+input:focus {
+  border-color: #0a72bb;
+  box-shadow: 0 0 0 4px rgba(10, 114, 187, 0.08);
+}
+
+#kc-form-options {
+  margin-top: 2px;
+}
+
+#kc-form-options .checkbox,
+#kc-form-options span,
+#kc-form-options a,
+#kc-form-options-wrapper {
+  color: #6d7786;
+  font-size: 13px;
+}
+
+#kc-form-buttons {
+  margin-top: 22px;
+}
+
+#kc-login,
+input[type="submit"],
+.pf-v5-c-button.pf-m-primary {
+  min-height: 50px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b2cf00 0%, #0a72bb 100%);
+  box-shadow: 0 14px 28px rgba(10, 114, 187, 0.14);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+#kc-login:hover,
+input[type="submit"]:hover,
+.pf-v5-c-button.pf-m-primary:hover {
+  filter: brightness(0.98);
+}
+
+a {
+  color: #0a72bb;
+}
+
+.alert,
+.pf-v5-c-alert {
+  margin-bottom: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(50, 68, 92, 0.08);
+  box-shadow: none;
+}
+
+#kc-info-wrapper {
+  margin-top: 14px;
+  min-height: 78px;
+  padding: 14px 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 246, 243, 0.94) 100%),
+    url("../img/neuron-footer.jpg") no-repeat right 16px center / 134px auto;
+}
+
+#kc-info-wrapper::before {
+  content: "Powered by NEURON";
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(178, 207, 0, 0.12);
+  color: #0a72bb;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+#kc-info-wrapper * {
+  max-width: calc(100% - 150px);
+  color: #6d7786;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.login-pf-page .card-pf,
+.card-pf {
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  html.login-pf::before,
+  html.login-pf::after,
+  body.login-pf::before,
+  body.login-pf::after,
+  body.login-pf-page::before,
+  body.login-pf-page::after {
+    display: none;
+  }
+
+  #kc-header {
+    padding: 18px 12px 12px;
+  }
+
+  #kc-header-wrapper {
+    min-height: 118px;
+    border-radius: 24px;
+  }
+
+  #kc-header-wrapper::before {
+    inset: 16px auto auto 18px;
+    width: 188px;
+    height: 68px;
+  }
+
+  #kc-header-wrapper::after {
+    inset: 18px 18px auto auto;
+    min-height: 24px;
+    font-size: 10px;
+  }
+
+  #kc-content {
+    padding: 0 12px 132px;
+  }
+
+  #kc-content::after {
+    bottom: 24px;
+    width: min(100%, 224px);
+    height: 60px;
+  }
+
+  #kc-form-wrapper,
+  #kc-info-wrapper {
+    border-radius: 24px;
+  }
+
+  #kc-form-wrapper {
+    padding: 22px 20px 20px;
+  }
+
+  #kc-page-title {
+    font-size: 26px;
+  }
+
+  #kc-info-wrapper {
+    background-position: right 14px bottom 14px;
+    background-size: 110px auto;
+  }
+
+  #kc-info-wrapper * {
+    max-width: 100%;
+  }
+}
