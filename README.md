@@ -19,6 +19,7 @@ Phase 1 keeps local development simple:
 - `portal`, `truck-frontend`, `spbu-frontend`, and `planner-frontend` are exposed through Traefik.
 - `portal` is built from `../vrp_portal` and runs as a production Next.js container on the private Docker network.
 - `truck-backend`, `spbu-backend`, `planner-backend`, and their databases stay on the private Docker network by default.
+- `vrp-routefinder-service` stays internal-only on the Docker private network and serves RouteFinder SPBU clustering to `planner-backend`.
 
 This is intentionally local-first and HTTP-only. The production path is documented, but the main implementation optimizes for fast local setup.
 
@@ -170,3 +171,40 @@ See [docs/repo-integration.md](docs/repo-integration.md), [docs/portal-integrati
 - OAuth2 Proxy is implemented per app hostname to avoid cookie-domain edge cases during local development.
 - OAuth2 Proxy is still the auth boundary for all application frontends in local mode.
 - The production compose file is an example path, not a production-hardened deployment.
+
+
+## RouteFinder Cluster Hybrid Solver
+
+The planner runtime now supports an optional `RouteFinder Clustering + OR-Tools` mode.
+
+- Default state: disabled
+- Final optimizer: OR-Tools
+- RouteFinder role: SPBU clustering and order grouping only
+- Multi-trip, vehicle assignment, and final route solving remain inside OR-Tools
+- If RouteFinder is unavailable, `planner-backend` still runs because the feature defaults to OFF unless enabled in solver settings
+
+Planner backend env values injected from infra:
+
+- `SOLVER_BACKBONE=ortools`
+- `ROUTEFINDER_SERVICE_URL=http://vrp-routefinder-service:8090`
+- `ROUTEFINDER_DEFAULT_ENABLED=false`
+- `ROUTEFINDER_CLUSTER_MODE=soft`
+- `ROUTEFINDER_MAX_CLUSTER_SIZE=5`
+
+Docker Compose service added to the local and production stacks:
+
+- `vrp-routefinder-service`: built from `../vrp_planner/docker/routefinder.Dockerfile`
+- internal-only via `private` network
+- model volume mounted at `./models/routefinder:/models/routefinder`
+
+Enable or disable RouteFinder from the planner frontend at `/solver-settings`, or by calling:
+
+- `GET /api/vrp/solver-settings`
+- `PUT /api/vrp/solver-settings`
+
+Rebuild planner and RouteFinder services from `vrp_infa`:
+
+```bash
+docker compose --env-file .env -f docker-compose.local.yml build planner-backend planner-frontend vrp-routefinder-service
+docker compose --env-file .env -f docker-compose.local.yml up -d planner-backend planner-frontend vrp-routefinder-service
+```

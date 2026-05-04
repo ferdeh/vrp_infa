@@ -6,6 +6,7 @@ This document prepares the single-server production path for:
 - `vrp_portal`
 - `SPBU_Network_Masterdata`
 - `truck_master_data`
+- `vrp_planner`
 
 ## Architecture Decision
 
@@ -84,6 +85,7 @@ Minimum values to change:
 - `OAUTH2_PROXY_COOKIE_SECRET`
 - `TRUCK_DB_PASSWORD`
 - `SPBU_DB_PASSWORD`
+- `PLANNER_DB_PASSWORD`
 
 Production notes:
 
@@ -91,6 +93,8 @@ Production notes:
 - `dispatch` is still a placeholder service in this stack.
 - SPBU and Truck stay private behind Traefik and `oauth2-proxy`.
 - The `portal` container now mounts the sibling repositories read-only under `/workspace` and uses `PORTAL_GIT_WORKSPACE_ROOT=/workspace`, so keep those repositories present on the server at the expected sibling paths before running `./scripts/deploy-production.sh`.
+- `planner-backend` auto-runs `alembic upgrade head` on startup, so planner schema updates such as RouteFinder cluster tables are applied from inside this stack.
+- `vrp-routefinder-service` is internal-only and exists to provide SPBU clustering to planner; it does not expose a public route.
 
 ## Install Auto-Start
 
@@ -116,7 +120,7 @@ If the current shell has not picked up the `docker` group after bootstrap, log o
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose.prod.yml ps
-docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f traefik keycloak portal truck-backend spbu-backend
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f traefik keycloak portal truck-backend spbu-backend planner-backend vrp-routefinder-service
 docker compose --env-file .env.prod -f docker-compose.prod.yml pull
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 systemctl status vrp-platform.service

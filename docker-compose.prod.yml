@@ -707,12 +707,19 @@ services:
       PLANNER_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_SCHEME}://${PLANNER_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}
       PLANNER_AUTH_LOGOUT_URL: ${PLATFORM_PUBLIC_SCHEME}://${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout
       PLANNER_OAUTH_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}-planner
+      SOLVER_BACKBONE: ortools
+      ROUTEFINDER_SERVICE_URL: http://vrp-routefinder-service:8090
+      ROUTEFINDER_DEFAULT_ENABLED: ${ROUTEFINDER_DEFAULT_ENABLED:-false}
+      ROUTEFINDER_CLUSTER_MODE: ${ROUTEFINDER_CLUSTER_MODE:-soft}
+      ROUTEFINDER_MAX_CLUSTER_SIZE: ${ROUTEFINDER_MAX_CLUSTER_SIZE:-5}
     depends_on:
       planner-db:
         condition: service_healthy
       truck-backend:
         condition: service_healthy
       spbu-backend:
+        condition: service_healthy
+      vrp-routefinder-service:
         condition: service_healthy
     expose:
       - "8080"
@@ -750,6 +757,35 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - private
+    restart: unless-stopped
+
+  vrp-routefinder-service:
+    build:
+      context: ../vrp_planner
+      dockerfile: docker/routefinder.Dockerfile
+    container_name: vrp-routefinder-service
+    environment:
+      APP_NAME: vrp_routefinder_service
+      APP_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8090
+      LOG_LEVEL: INFO
+    volumes:
+      - ./models/routefinder:/models/routefinder
+    expose:
+      - "8090"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - private
     restart: unless-stopped

@@ -32,6 +32,7 @@ Planner service connections:
 - backend -> database: `postgresql+psycopg2://<PLANNER_DB_USER>:<PLANNER_DB_PASSWORD>@planner-db:5432/<PLANNER_DB_NAME>`
 - backend -> SPBU master data: `http://spbu-backend:8000`
 - backend -> Truck master data: `http://truck-backend:8000`
+- backend -> RouteFinder clustering: `http://vrp-routefinder-service:8090`
 
 ## What Changed
 
@@ -42,6 +43,7 @@ Planner service connections:
 - the backend now has a proxy-assisted logout handoff for Keycloak RP-initiated logout
 - the backend now defaults to internal Docker service names instead of `host.docker.internal`
 - the planner database now runs inside `vrp_infa` as `planner-db`
+- RouteFinder now acts only as SPBU clustering service; OR-Tools remains the only final solver
 
 ## Runtime Environment
 
@@ -53,6 +55,9 @@ PLANNER_DB_PORT=5432
 PLANNER_DB_NAME=vrp_planner
 PLANNER_DB_USER=planner
 PLANNER_DB_PASSWORD=replace-me
+ROUTEFINDER_DEFAULT_ENABLED=false
+ROUTEFINDER_CLUSTER_MODE=soft
+ROUTEFINDER_MAX_CLUSTER_SIZE=5
 ```
 
 Planner container env values injected from infra:
@@ -62,6 +67,10 @@ Planner container env values injected from infra:
 - `DATABASE_URL=postgresql+psycopg2://<PLANNER_DB_USER>:<PLANNER_DB_PASSWORD>@planner-db:5432/<PLANNER_DB_NAME>`
 - `MASTER_DATA_API_BASE_URL=http://spbu-backend:8000`
 - `TRUCK_MASTER_DATA_API_BASE_URL=http://truck-backend:8000`
+- `ROUTEFINDER_SERVICE_URL=http://vrp-routefinder-service:8090`
+- `ROUTEFINDER_DEFAULT_ENABLED=false`
+- `ROUTEFINDER_CLUSTER_MODE=soft`
+- `ROUTEFINDER_MAX_CLUSTER_SIZE=5`
 - `CORS_ORIGINS=http://planner.localhost:8088`
 - `PLANNER_PUBLIC_BASE_URL=http://planner.localhost:8088`
 - `PLANNER_AUTH_LOGOUT_URL=http://auth.localhost:8088/realms/vrp-platform/protocol/openid-connect/logout`
@@ -81,8 +90,8 @@ Planner container env values injected from infra:
 From `vrp_infa`:
 
 ```bash
-docker compose --env-file .env -f docker-compose.local.yml build planner-backend planner-frontend portal
-docker compose --env-file .env -f docker-compose.local.yml up -d planner-db planner-backend planner-frontend oauth2-proxy-planner portal
+docker compose --env-file .env -f docker-compose.local.yml build planner-backend planner-frontend vrp-routefinder-service portal
+docker compose --env-file .env -f docker-compose.local.yml up -d planner-db planner-backend planner-frontend vrp-routefinder-service oauth2-proxy-planner portal
 docker compose --env-file .env -f docker-compose.local.yml ps
 ```
 
@@ -100,9 +109,10 @@ docker compose --env-file .env -f docker-compose.local.yml up -d --build
 3. Sign in with `paula.planner` and `KEYCLOAK_SAMPLE_PASSWORD`.
 4. Confirm the real planner UI loads instead of the placeholder.
 5. Confirm browser API requests go to `/api/v1/...` on the same origin.
-6. Confirm planner can load depots, SPBU, trucks, and save planner state.
-7. Click `Back to Portal` and confirm the browser returns to `http://portal.localhost:8088`.
-8. Click `Logout` and confirm the next visit requires a fresh login.
+6. Open `/solver-settings`, enable RouteFinder clustering, and save `cluster_mode` plus `max_cluster_size`.
+7. Run a solver scenario and confirm planner can load depots, SPBU, trucks, save planner state, and still solve through OR-Tools.
+8. Click `Back to Portal` and confirm the browser returns to `http://portal.localhost:8088`.
+9. Click `Logout` and confirm the next visit requires a fresh login.
 
 ## Rollback
 
@@ -111,5 +121,5 @@ docker compose --env-file .env -f docker-compose.local.yml up -d --build
 3. Recreate the affected services:
 
 ```bash
-docker compose --env-file .env -f docker-compose.local.yml up -d --force-recreate planner-db planner-backend planner-frontend oauth2-proxy-planner portal
+docker compose --env-file .env -f docker-compose.local.yml up -d --force-recreate planner-db planner-backend planner-frontend vrp-routefinder-service oauth2-proxy-planner portal
 ```
