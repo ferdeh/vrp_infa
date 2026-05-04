@@ -92,6 +92,8 @@ Production notes:
 - `KEYCLOAK_SAMPLE_PASSWORD` should be rotated or the sample users removed before go-live.
 - `dispatch` is still a placeholder service in this stack.
 - SPBU and Truck stay private behind Traefik and `oauth2-proxy`.
+- Internal app-to-app traffic should keep using Docker service names such as `truck-backend`, `spbu-backend`, `truck-db`, and `spbu-db` instead of host IP addresses or public DNS names.
+- `OAUTH2_PROXY_WHITELIST_DOMAINS` should include both the protected app host and `${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}` so `/oauth2/sign_out?rd=...` can redirect cleanly to Keycloak logout.
 - The `portal` container now mounts the sibling repositories read-only under `/workspace` and uses `PORTAL_GIT_WORKSPACE_ROOT=/workspace`, so keep those repositories present on the server at the expected sibling paths before running `./scripts/deploy-production.sh`.
 - `planner-backend` auto-runs `alembic upgrade head` on startup, so planner schema updates such as RouteFinder cluster tables are applied from inside this stack.
 - `vrp-routefinder-service` is internal-only and exists to provide SPBU clustering to planner; it does not expose a public route.

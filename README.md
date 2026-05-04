@@ -152,6 +152,7 @@ The intended local workflow is now:
 - the `portal` container also mounts the sibling repositories read-only under `/workspace` so portal features can inspect the integrated workspace without cloning inside the container
 - browser access goes only through routed platform hosts such as `portal.localhost:8088` and `planner.localhost:8088`
 - frontend-to-backend and backend-to-database traffic uses Docker service names, not `localhost`
+- backend-to-backend traffic also uses Docker service names such as `truck-backend` and `spbu-backend`, so container IP changes should not require config changes
 
 See [docs/repo-integration.md](docs/repo-integration.md), [docs/portal-integration.md](docs/portal-integration.md), [docs/spbu-integration.md](docs/spbu-integration.md), and [docs/planner-integration.md](docs/planner-integration.md).
 

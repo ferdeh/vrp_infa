@@ -103,6 +103,12 @@ The local compose stack starts:
 - 4 routed application frontends
 - 4 private application backends and databases on the private network
 
+Internal routing note:
+
+- browser URLs use routed hosts such as `truck.localhost` and `spbu.localhost`
+- container-to-container traffic should keep using Docker service names such as `truck-backend`, `spbu-backend`, `truck-db`, and `spbu-db`
+- changing your laptop IP or Docker bridge IP should not require changing those internal service URLs
+
 ## Local Test Checklist
 
 ### Traefik
@@ -202,6 +208,7 @@ Check:
 
 - that `KEYCLOAK_HOST` matches the routed auth hostname
 - that `KEYCLOAK_INTERNAL_URL` points at the internal Docker hostname for Keycloak discovery
+- that `OAUTH2_PROXY_WHITELIST_DOMAINS` includes both the protected app host and `${KEYCLOAK_HOST}${PLATFORM_PUBLIC_PORT_SUFFIX}` when logout should redirect through Keycloak
 - that the client secret in `.env` is unchanged after the clients were already created
 - that your chosen hostname mode matches your browser URL
 
